@@ -8,13 +8,19 @@
   html, body { margin: 0; height: 100%; background: #000; color: #fff; font-family: system-ui, sans-serif; }
   canvas { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
   video { display: none; }
-  #status { position: fixed; left: 0; right: 0; bottom: 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
-            text-align: center; font-size: 20px; background: rgba(0, 0, 0, 0.6); }
+  #guide { position: fixed; top: 50%; left: 50%; width: 60vmin; height: 60vmin; transform: translate(-50%, -60%);
+           border: 4px dashed rgba(255, 255, 255, 0.7); border-radius: 16px; pointer-events: none; }
+  #status { position: fixed; left: 16px; right: 16px; bottom: calc(24px + env(safe-area-inset-bottom));
+            padding: 16px 20px; border-radius: 16px; text-align: center; font-size: 22px; font-weight: 600;
+            background: rgba(0, 0, 0, 0.75); }
+  #status.playing { background: #2ecc71; color: #000; }
+  body.playing #guide { border-style: solid; border-color: #2ecc71; }
 </style>
 </head>
 <body>
 <video id="video" playsinline muted></video>
 <canvas id="canvas"></canvas>
+<div id="guide"></div>
 <div id="status">Starting camera…</div>
 
 <script src="lib/cv.js"></script>
@@ -39,14 +45,16 @@ let currentTag = null;
 let lastSeen = 0;
 let computer = null;
 
-function show(text) {
+function show(text, playing = false) {
   statusEl.textContent = text;
+  statusEl.classList.toggle('playing', playing);
+  document.body.classList.toggle('playing', playing);
 }
 
 function setTag(tag) {
   currentTag = tag;
   computer.send({ tag });
-  show(tag === null ? 'Show a tag to the camera' : 'Tag ' + tag + ': playing on the computer');
+  show(tag === null ? 'Hold a tag inside the box' : '♪ Tag ' + tag + ' is playing', tag !== null);
 }
 
 async function startCamera() {
@@ -57,7 +65,7 @@ async function startCamera() {
     return;
   }
   await video.play();
-  show('Show a tag to the camera');
+  show('Hold a tag inside the box');
   requestAnimationFrame(tick);
 }
 

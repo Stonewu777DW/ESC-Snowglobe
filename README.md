@@ -13,7 +13,7 @@ The song starts from the beginning when a tag appears and stops when the tag is 
 | [tag3](tags/tag3.svg) | White Christmas |
 
 ## For GMs
-1. On the game computer open **https://stonewu777dw.github.io/ESC-Snowglobe/** (bookmark it) and click anywhere on the page to turn on sound.
+1. On the game computer open **https://stonewu777dw.github.io/ESC-Snowglobe/** (bookmark it) and click the orange **Click to turn on sound** button.
 2. Scan the QR code on the computer screen with the phone's camera app, open the link, and allow the camera.
 3. Hold a tag in front of the phone's front camera.
 

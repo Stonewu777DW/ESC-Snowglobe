@@ -12,8 +12,13 @@
 <body>
 <div id="status">Click anywhere to start the player</div>
 <script>
-// Tag ID -> song file, served by server.js from the songs/ folder.
-const SONGS = ['songs/song0.mp3', 'songs/song1.mp3', 'songs/song2.mp3', 'songs/song3.mp3'];
+// Tag ID -> song file in the songs/ folder (tag 0 is the first line).
+const SONGS = [
+  'songs/Frank Sinatra - Jingle Bells 4.mp3',
+  'songs/Frosty the Snowman (with lyrics).mp3',
+  'songs/Gene Autry - Rudolph the Red-Nosed Reindeer (Audio) 4.mp3',
+  'songs/White Christmas (Official Video) 4.mp3',
+];
 
 const statusEl = document.getElementById('status');
 const audio = new Audio();

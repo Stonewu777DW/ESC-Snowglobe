@@ -5,16 +5,17 @@ The song starts from the beginning when a tag appears and stops when the tag is 
 
 | Tag (36h11) | Song |
 |---|---|
-| [tag0](tags/tag0.svg) | `songs/song0.mp3` |
-| [tag1](tags/tag1.svg) | `songs/song1.mp3` |
-| [tag2](tags/tag2.svg) | `songs/song2.mp3` |
-| [tag3](tags/tag3.svg) | `songs/song3.mp3` |
+| [tag0](tags/tag0.svg) | Jingle Bells |
+| [tag1](tags/tag1.svg) | Frosty the Snowman |
+| [tag2](tags/tag2.svg) | Rudolph the Red-Nosed Reindeer |
+| [tag3](tags/tag3.svg) | White Christmas |
+
+To change which tag plays which song, edit the `SONGS` list in `public/player.html`.
 
 ## Setup (once)
 1. Install [Node.js](https://nodejs.org) on the computer that plays the music.
-2. Put the four songs in `songs/` with the names above.
-3. Print the tags from `tags/`. Keep the white margin around each tag.
-4. In this folder run `npm install`.
+2. Print the tags from `tags/`. Keep the white margin around each tag.
+3. In this folder run `npm install`.
 
 ## Run
 1. On the computer run `npm start`. It prints two links.

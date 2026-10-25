@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ESC Snowglobe Player</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #fff; font-family: system-ui, sans-serif; }
+  body { display: grid; place-items: center; font-size: 32px; }
+</style>
+</head>
+<body>
+<div id="status">Click anywhere to start the player</div>
+<script>
+// Tag ID -> song file, served by server.js from the songs/ folder.
+const SONGS = ['songs/song0.mp3', 'songs/song1.mp3', 'songs/song2.mp3', 'songs/song3.mp3'];
+
+const statusEl = document.getElementById('status');
+const audio = new Audio();
+let currentTag = null;
+
+// Browsers only allow audio after a click, so the player waits for one.
+document.addEventListener('click', () => {
+  statusEl.textContent = 'Waiting for a tag';
+  new EventSource('/events').onmessage = e => {
+    const tag = JSON.parse(e.data);
+    if (tag === currentTag) return;
+    currentTag = tag;
+    if (tag === null) {
+      audio.pause();
+      statusEl.textContent = 'Waiting for a tag';
+      return;
+    }
+    audio.src = SONGS[tag];
+    audio.play().catch(err => { statusEl.textContent = 'Could not play ' + SONGS[tag] + ': ' + err.message; });
+    statusEl.textContent = 'Tag ' + tag + ': playing';
+  };
+}, { once: true });
+</script>
+</body>
+</html>

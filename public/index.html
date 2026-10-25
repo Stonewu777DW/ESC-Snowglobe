@@ -15,14 +15,14 @@
 <body>
 <video id="video" playsinline muted></video>
 <canvas id="canvas"></canvas>
-<div id="status">Tap anywhere to start</div>
+<div id="status">Tap anywhere to start the camera</div>
 
 <script src="lib/cv.js"></script>
 <script src="lib/aruco.js"></script>
 <script src="lib/apriltag_36h11.js"></script>
 <script>
-// Tag ID -> song file. Tags 0-3 of the AprilTag 36h11 family (printables in tags/).
-const SONGS = ['songs/song0.mp3', 'songs/song1.mp3', 'songs/song2.mp3', 'songs/song3.mp3'];
+// Tags 0-3 of the AprilTag 36h11 family (printables in tags/) each pick a song on the computer.
+const TAG_COUNT = 4;
 // How long a tag may be out of view before its song stops (covers missed frames).
 const LOST_MS = 500;
 // Frames are downscaled to this width before detection to keep phones fast.
@@ -33,19 +33,11 @@ const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
 const statusEl = document.getElementById('status');
 const detector = new AR.Detector({ dictionaryName: 'APRILTAG_36h11' });
-const audio = new Audio();
 
 let currentTag = null;
 let lastSeen = 0;
 
 document.addEventListener('click', async () => {
-  // Phones only allow audio after a tap: play once muted inside this tap to unlock the element.
-  audio.src = SONGS[0];
-  audio.muted = true;
-  await audio.play().catch(() => {});
-  audio.pause();
-  audio.muted = false;
-
   try {
     video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
   } catch (err) {
@@ -57,19 +49,14 @@ document.addEventListener('click', async () => {
   requestAnimationFrame(tick);
 }, { once: true });
 
-function play(tag) {
-  currentTag = tag;
-  audio.src = SONGS[tag];
-  audio.currentTime = 0;
-  audio.play().catch(err => { statusEl.textContent = 'Could not play ' + SONGS[tag] + ': ' + err.message; });
-  statusEl.textContent = 'Tag ' + tag + ': playing';
-}
+// Stop the music if this phone leaves the page.
+addEventListener('pagehide', () => navigator.sendBeacon('/tag', JSON.stringify({ tag: null })));
 
-function stop() {
-  audio.pause();
-  audio.currentTime = 0;
-  currentTag = null;
-  statusEl.textContent = 'Show a tag to the camera';
+function setTag(tag) {
+  currentTag = tag;
+  statusEl.textContent = tag === null ? 'Show a tag to the camera' : 'Tag ' + tag + ': playing on the computer';
+  fetch('/tag', { method: 'POST', body: JSON.stringify({ tag }) })
+    .catch(() => { statusEl.textContent = 'Lost connection to the computer'; });
 }
 
 function tick() {
@@ -78,7 +65,7 @@ function tick() {
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
   const markers = detector.detect(ctx.getImageData(0, 0, canvas.width, canvas.height))
-    .filter(m => m.id < SONGS.length);
+    .filter(m => m.id < TAG_COUNT);
   const ids = markers.map(m => m.id);
   const now = performance.now();
 
@@ -86,9 +73,9 @@ function tick() {
     lastSeen = now;
   } else if (ids.length > 0) {
     lastSeen = now;
-    play(ids[0]);
+    setTag(ids[0]);
   } else if (currentTag !== null && now - lastSeen > LOST_MS) {
-    stop();
+    setTag(null);
   }
 
   ctx.strokeStyle = '#0f0';

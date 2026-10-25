@@ -1,0 +1,10 @@
+{
+  "name": "esc-snowglobe",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "selfsigned": "2.4.1"
+  }
+}

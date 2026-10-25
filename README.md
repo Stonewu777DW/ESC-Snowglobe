@@ -14,7 +14,7 @@ To change which tag plays which song, edit the `SONGS` list in `index.html`.
 
 ## Setup (once)
 1.## For GMs
-1. On the game computer open **https://stonewu777dw.github.io/esc-snowglobe/** (bookmark it) and click anywhere on the page to turn on sound.
+1. On the game computer open **https://stonewu777dw.github.io/ESC-Snowglobe/** (bookmark it) and click anywhere on the page to turn on sound.
 2. Scan the QR code with the phone and allow the camera.
 3. Hold a tag in front of the phone's camera.
 

@@ -1,6 +1,6 @@
 # ESC Snowglobe
 
-Show an AprilTag to a phone's front camera and a computer on the same WiFi plays that tag's song.
+Show an AprilTag to a phone's front camera and the game computer plays that tag's song.
 The song starts from the beginning when a tag appears and stops when the tag is gone for half a second.
 
 | Tag (36h11) | Song |
@@ -10,19 +10,19 @@ The song starts from the beginning when a tag appears and stops when the tag is 
 | [tag2](tags/tag2.svg) | Rudolph the Red-Nosed Reindeer |
 | [tag3](tags/tag3.svg) | White Christmas |
 
-To change which tag plays which song, edit the `SONGS` list in `public/player.html`.
+To change which tag plays which song, edit the `SONGS` list in `index.html`.
 
 ## Setup (once)
-1. Install [Node.js](https://nodejs.org) on the computer that plays the music.
-2. Print the tags from `tags/`. Keep the white margin around each tag.
-3. In this folder run `npm install`.
+1.## For GMs
+1. On the game computer open **https://stonewu777dw.github.io/esc-snowglobe/** (bookmark it) and click anywhere on the page to turn on sound.
+2. Scan the QR code with the phone and allow the camera.
+3. Hold a tag in front of the phone's camera.
 
-## Run
-1. On the computer run `npm start`. It prints two links.
-2. On the computer open the **Player** link, accept the security warning, and click once (browsers need a click before they play sound). Leave this tab open.
-3. On a phone on the same WiFi open the **Phones** link, accept the security warning, and tap once to start the camera.
-4. Hold a tag in front of the phone's camera.
+The computer and phone both need internet. They connect directly to each other, using the free PeerJS service only to find each other.
+Each computer keeps the same QR code, so you can print it and leave it in the room.
 
-The security warning appears because the computer uses its own certificate. Phones only allow the camera on HTTPS pages, so this is needed. Each browser asks once.
+## Setup (once)
+- Print the tags from `tags/`, at least 5 cm wide. Keep the white margin around each tag.
+- Turn on GitHub Pages: Settings → Pages → Deploy from a branch → `main`, `/ (root)`.
 
-Tag detection uses [js-aruco2](https://github.com/damianofalcioni/js-aruco2) (MIT), vendored in `public/lib/`.
+Tag detection uses [js-aruco2](https://github.com/damianofalcioni/js-aruco2) (MIT), with [PeerJS](https://peerjs.com) (MIT) and [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) (MIT), all vendored in `lib/`.

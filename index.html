@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ESC Snowglobe</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #fff; font-family: system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; text-align: center; }
+  #qr { width: min(60vh, 80vw); background: #fff; padding: 16px; border-radius: 8px; }
+  #qr svg { display: block; width: 100%; height: auto; }
+  #status { font-size: 32px; }
+  #hint { font-size: 18px; color: #aaa; }
+</style>
+</head>
+<body>
+<div id="qr"></div>
+<div id="status">Connecting…</div>
+<div id="hint">Click anywhere on this page to turn on sound</div>
+
+<script src="lib/peerjs.min.js"></script>
+<script src="lib/qrcode.js"></script>
+<script>
+// Tag ID -> song file in the songs/ folder (tag 0 is the first line).
+const SONGS = [
+  'songs/Frank Sinatra - Jingle Bells 4.mp3',
+  'songs/Frosty the Snowman (with lyrics).mp3',
+  'songs/Gene Autry - Rudolph the Red-Nosed Reindeer (Audio) 4.mp3',
+  'songs/White Christmas (Official Video) 4.mp3',
+];
+
+const statusEl = document.getElementById('status');
+const hintEl = document.getElementById('hint');
+const audio = new Audio();
+let currentTag = null;
+let tagOwner = null; // the phone that chose the current song
+let ownerHeardAt = 0;
+// Phones repeat their tag every second; stop if the phone that chose the song goes quiet.
+const PHONE_TIMEOUT_MS = 3000;
+
+// Keep the same pairing code on this computer, so a phone link or printed QR keeps working.
+function roomId() {
+  try {
+    const saved = localStorage.getItem('roomId');
+    if (saved) return saved;
+    const id = 'esc-snowglobe-' + Math.random().toString(36).slice(2, 10);
+    localStorage.setItem('roomId', id);
+    return id;
+  } catch {
+    return 'esc-snowglobe-' + Math.random().toString(36).slice(2, 10);
+  }
+}
+
+function onPhoneMessage(phone, tag) {
+  // Another phone seeing nothing must not stop a song this phone did not start.
+  if (tag === null && phone !== tagOwner) return;
+  tagOwner = phone;
+  ownerHeardAt = performance.now();
+  setTag(tag);
+}
+
+function setTag(tag) {
+  if (tag === currentTag) return;
+  currentTag = tag;
+  if (tag === null) {
+    audio.pause();
+    statusEl.textContent = 'Phone connected. Waiting for a tag';
+    return;
+  }
+  audio.src = SONGS[tag];
+  audio.play().catch(() => { hintEl.textContent = 'Click anywhere on this page to turn on sound'; });
+  statusEl.textContent = 'Tag ' + tag + ': playing';
+}
+
+// Browsers only play sound after a click on the page.
+document.addEventListener('click', () => {
+  hintEl.textContent = 'Sound is on';
+  if (currentTag !== null) audio.play();
+});
+
+const peer = new Peer(roomId());
+peer.on('open', id => {
+  const phoneUrl = new URL('phone.html#' + id, location.href).href;
+  const qr = qrcode(0, 'M');
+  qr.addData(phoneUrl);
+  qr.make();
+  document.getElementById('qr').innerHTML = qr.createSvgTag({ scalable: true, margin: 0 });
+  statusEl.textContent = 'Scan with the phone';
+});
+peer.on('connection', phone => {
+  phone.on('open', () => { statusEl.textContent = 'Phone connected. Waiting for a tag'; });
+  phone.on('data', msg => onPhoneMessage(phone, msg.tag));
+  phone.on('close', () => {
+    if (phone === tagOwner) setTag(null);
+    statusEl.textContent = 'Phone disconnected. Scan again';
+  });
+});
+setInterval(() => {
+  if (currentTag !== null && performance.now() - ownerHeardAt > PHONE_TIMEOUT_MS) {
+    setTag(null);
+    statusEl.textContent = 'Lost the phone. Scan again';
+  }
+}, 500);
+peer.on('disconnected', () => peer.reconnect());
+peer.on('error', err => {
+  statusEl.textContent = err.type === 'unavailable-id'
+    ? 'This page is already open in another tab or window. Close the other one and reload.'
+    : 'Connection problem: ' + err.message;
+});
+</script>
+</body>
+</html>

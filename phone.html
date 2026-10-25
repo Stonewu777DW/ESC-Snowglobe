@@ -15,11 +15,12 @@
 <body>
 <video id="video" playsinline muted></video>
 <canvas id="canvas"></canvas>
-<div id="status">Tap anywhere to start the camera</div>
+<div id="status">Starting camera…</div>
 
 <script src="lib/cv.js"></script>
 <script src="lib/aruco.js"></script>
 <script src="lib/apriltag_36h11.js"></script>
+<script src="lib/peerjs.min.js"></script>
 <script>
 // Tags 0-3 of the AprilTag 36h11 family (printables in tags/) each pick a song on the computer.
 const TAG_COUNT = 4;
@@ -36,27 +37,49 @@ const detector = new AR.Detector({ dictionaryName: 'APRILTAG_36h11' });
 
 let currentTag = null;
 let lastSeen = 0;
+let computer = null;
 
-document.addEventListener('click', async () => {
-  try {
-    video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
-  } catch (err) {
-    statusEl.textContent = 'Camera blocked: ' + err.message + '. Reload to try again.';
-    return;
-  }
-  await video.play();
-  statusEl.textContent = 'Show a tag to the camera';
-  requestAnimationFrame(tick);
-}, { once: true });
-
-// Stop the music if this phone leaves the page.
-addEventListener('pagehide', () => navigator.sendBeacon('/tag', JSON.stringify({ tag: null })));
+function show(text) {
+  statusEl.textContent = text;
+}
 
 function setTag(tag) {
   currentTag = tag;
-  statusEl.textContent = tag === null ? 'Show a tag to the camera' : 'Tag ' + tag + ': playing on the computer';
-  fetch('/tag', { method: 'POST', body: JSON.stringify({ tag }) })
-    .catch(() => { statusEl.textContent = 'Lost connection to the computer'; });
+  computer.send({ tag });
+  show(tag === null ? 'Show a tag to the camera' : 'Tag ' + tag + ': playing on the computer');
+}
+
+async function startCamera() {
+  try {
+    video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+  } catch (err) {
+    show('Camera blocked: ' + err.message + '. Allow the camera and reload.');
+    return;
+  }
+  await video.play();
+  show('Show a tag to the camera');
+  requestAnimationFrame(tick);
+}
+
+// The computer's QR code opens this page with its pairing code after the #.
+const roomId = location.hash.slice(1);
+if (!roomId) {
+  show('Scan the QR code on the game computer');
+} else {
+  show('Connecting to the computer…');
+  const peer = new Peer();
+  peer.on('open', () => {
+    computer = peer.connect(roomId, { reliable: true });
+    computer.on('open', () => {
+      startCamera();
+      // Repeat the current tag so the computer notices if this phone disappears.
+      setInterval(() => computer.send({ tag: currentTag }), 1000);
+    });
+    computer.on('close', () => show('Lost the computer. Scan its QR code again'));
+  });
+  peer.on('error', err => show(err.type === 'peer-unavailable'
+    ? 'Computer not found. Check its page is open and scan again'
+    : 'Connection problem: ' + err.message));
 }
 
 function tick() {

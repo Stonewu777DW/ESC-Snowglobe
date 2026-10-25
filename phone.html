@@ -30,6 +30,8 @@
 <script>
 // Tags 0-3 of the AprilTag 36h11 family (printables in tags/) each pick a song on the computer.
 const TAG_COUNT = 4;
+// How long a tag must stay in view before its song starts, so a quick flash does nothing.
+const START_MS = 500;
 // How long a tag may be out of view before its song stops (covers missed frames).
 const LOST_MS = 500;
 // Frames are downscaled to this width before detection to keep phones fast.
@@ -42,7 +44,9 @@ const statusEl = document.getElementById('status');
 const detector = new AR.Detector({ dictionaryName: 'APRILTAG_36h11' });
 
 let currentTag = null;
-let lastSeen = 0;
+// Per tag: when it came into view, and when it was last seen.
+const firstSeen = [];
+const lastSeen = [];
 let computer = null;
 
 function show(text, playing = false) {
@@ -97,16 +101,17 @@ function tick() {
 
   const markers = detector.detect(ctx.getImageData(0, 0, canvas.width, canvas.height))
     .filter(m => m.id < TAG_COUNT);
-  const ids = markers.map(m => m.id);
   const now = performance.now();
+  const inView = id => now - lastSeen[id] <= LOST_MS;
+  for (const m of markers) {
+    if (!inView(m.id)) firstSeen[m.id] = now;
+    lastSeen[m.id] = now;
+  }
 
-  if (currentTag !== null && ids.includes(currentTag)) {
-    lastSeen = now;
-  } else if (ids.length > 0) {
-    lastSeen = now;
-    setTag(ids[0]);
-  } else if (currentTag !== null && now - lastSeen > LOST_MS) {
-    setTag(null);
+  if (currentTag === null || !inView(currentTag)) {
+    const ready = [...Array(TAG_COUNT).keys()].find(id => inView(id) && lastSeen[id] - firstSeen[id] >= START_MS);
+    if (ready !== undefined) setTag(ready);
+    else if (currentTag !== null) setTag(null);
   }
 
   ctx.strokeStyle = '#0f0';

@@ -26,7 +26,7 @@
 <script src="lib/cv.js"></script>
 <script src="lib/aruco.js"></script>
 <script src="lib/apriltag_36h11.js"></script>
-<script src="lib/peerjs.min.js"></script>
+<script src="lib/mqtt.min.js"></script>
 <script>
 // Tags 0-3 of the AprilTag 36h11 family (printables in tags/) each pick a song on the computer.
 const TAG_COUNT = 4;
@@ -36,6 +36,8 @@ const START_MS = 500;
 const LOST_MS = 500;
 // Frames are downscaled to this width before detection to keep phones fast.
 const DETECT_WIDTH = 480;
+// Free public message server that passes tags to the computer, on any network.
+const BROKER = 'wss://broker.emqx.io:8084/mqtt';
 
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
@@ -47,7 +49,9 @@ let currentTag = null;
 // Per tag: when it came into view, and when it was last seen.
 const firstSeen = [];
 const lastSeen = [];
-let computer = null;
+let client = null;
+let topic = null;
+let cameraStarted = false;
 
 function show(text, playing = false) {
   statusEl.textContent = text;
@@ -57,11 +61,16 @@ function show(text, playing = false) {
 
 function setTag(tag) {
   currentTag = tag;
-  computer.send({ tag });
+  sendTag();
   show(tag === null ? 'Hold a tag inside the box' : '♪ Tag ' + tag + ' is playing', tag !== null);
 }
 
+function sendTag() {
+  client.publish(topic + '/tag', JSON.stringify({ phone: client.options.clientId, tag: currentTag }));
+}
+
 async function startCamera() {
+  cameraStarted = true;
   try {
     video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
   } catch (err) {
@@ -79,19 +88,22 @@ if (!roomId) {
   show('Scan the QR code on the game computer');
 } else {
   show('Connecting to the computer…');
-  const peer = new Peer();
-  peer.on('open', () => {
-    computer = peer.connect(roomId, { reliable: true });
-    computer.on('open', () => {
+  topic = 'esc-snowglobe/' + roomId;
+  client = mqtt.connect(BROKER);
+  client.on('connect', () => client.subscribe(topic + '/computer'));
+  // The computer page says 'online' while it is open and 'offline' once it closes.
+  client.on('message', (_, payload) => {
+    if (payload.toString() !== 'online') {
+      show('The computer page is closed. Open it again');
+    } else if (!cameraStarted) {
       startCamera();
       // Repeat the current tag so the computer notices if this phone disappears.
-      setInterval(() => computer.send({ tag: currentTag }), 1000);
-    });
-    computer.on('close', () => show('Lost the computer. Scan its QR code again'));
+      setInterval(sendTag, 1000);
+    } else {
+      show('Hold a tag inside the box');
+    }
   });
-  peer.on('error', err => show(err.type === 'peer-unavailable'
-    ? 'Computer not found. Check its page is open and scan again'
-    : 'Connection problem: ' + err.message));
+  client.on('offline', () => show('No internet. Reconnecting…'));
 }
 
 function tick() {

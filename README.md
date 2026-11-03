@@ -21,7 +21,7 @@ Each computer keeps the same QR code, so you can print it and leave it in the ro
 If the phone is closed or loses connection, the computer stops the music after about 3 seconds.
 
 ## Requirements
-- The computer and the phone both need internet. They connect directly to each other and use the free PeerJS service only to find each other.
+- The computer and the phone both need internet. They pass messages through the free public EMQX message server (broker.emqx.io), so they work on any network, including mobile data.
 - Print the tags from `tags/` at least 5 cm wide, keeping the white margin around each tag.
 
 ## Changing songs
@@ -31,4 +31,4 @@ Put the mp3 files in `songs/` and list them in the `SONGS` list in `index.html`.
 - `index.html`: the game computer page (QR code and music)
 - `phone.html`: the phone page (camera and tag detection)
 - `songs/`, `tags/`: songs and printable tags
-- `lib/`: [js-aruco2](https://github.com/damianofalcioni/js-aruco2), [PeerJS](https://peerjs.com) and [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator), all MIT licensed
+- `lib/`: [js-aruco2](https://github.com/damianofalcioni/js-aruco2), [MQTT.js](https://github.com/mqttjs/MQTT.js) and [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator), all MIT licensed

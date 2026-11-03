@@ -22,7 +22,7 @@
 <div id="status">Connecting…</div>
 <button id="sound">🔊 Click to turn on sound</button>
 
-<script src="lib/peerjs.min.js"></script>
+<script src="lib/mqtt.min.js"></script>
 <script src="lib/qrcode.js"></script>
 <script>
 // Tag ID -> song file in the songs/ folder (tag 0 is the first line).
@@ -32,6 +32,9 @@ const SONGS = [
   'songs/Gene Autry - Rudolph the Red-Nosed Reindeer (Audio) 4.mp3',
   'songs/White Christmas (Official Video) 4.mp3',
 ];
+
+// Free public message server that passes tags from phones to this page, on any network.
+const BROKER = 'wss://broker.emqx.io:8084/mqtt';
 
 const statusEl = document.getElementById('status');
 const soundBtn = document.getElementById('sound');
@@ -57,7 +60,10 @@ function roomId() {
 
 function onPhoneMessage(phone, tag) {
   // Another phone seeing nothing must not stop a song this phone did not start.
-  if (tag === null && phone !== tagOwner) return;
+  if (tag === null && phone !== tagOwner) {
+    if (currentTag === null) statusEl.textContent = 'Phone connected. Waiting for a tag';
+    return;
+  }
   tagOwner = phone;
   ownerHeardAt = performance.now();
   setTag(tag);
@@ -93,35 +99,34 @@ soundBtn.addEventListener('click', () => {
   setSoundOn(true);
 });
 
-const peer = new Peer(roomId());
-peer.on('open', id => {
-  const phoneUrl = new URL('phone.html#' + id, location.href).href;
+const room = roomId();
+const topic = 'esc-snowglobe/' + room;
+// Phones read this to tell whether this page is open.
+const presence = topic + '/computer';
+const client = mqtt.connect(BROKER, { will: { topic: presence, payload: 'offline', retain: true } });
+
+client.on('connect', () => {
+  client.publish(presence, 'online', { retain: true });
+  client.subscribe(topic + '/tag');
   const qr = qrcode(0, 'M');
-  qr.addData(phoneUrl);
+  qr.addData(new URL('phone.html#' + room, location.href).href);
   qr.make();
   document.getElementById('qr').innerHTML = qr.createSvgTag({ scalable: true, margin: 0 });
   statusEl.textContent = 'Scan with the phone';
 });
-peer.on('connection', phone => {
-  phone.on('open', () => { statusEl.textContent = 'Phone connected. Waiting for a tag'; });
-  phone.on('data', msg => onPhoneMessage(phone, msg.tag));
-  phone.on('close', () => {
-    if (phone === tagOwner) setTag(null);
-    statusEl.textContent = 'Phone disconnected. Scan again';
-  });
+client.on('message', (_, payload) => {
+  const msg = JSON.parse(payload);
+  onPhoneMessage(msg.phone, msg.tag);
 });
+client.on('offline', () => { statusEl.textContent = 'No internet. Reconnecting…'; });
+addEventListener('pagehide', () => client.publish(presence, 'offline', { retain: true }));
+
 setInterval(() => {
   if (currentTag !== null && performance.now() - ownerHeardAt > PHONE_TIMEOUT_MS) {
     setTag(null);
     statusEl.textContent = 'Lost the phone. Scan again';
   }
 }, 500);
-peer.on('disconnected', () => peer.reconnect());
-peer.on('error', err => {
-  statusEl.textContent = err.type === 'unavailable-id'
-    ? 'This page is already open in another tab or window. Close the other one and reload.'
-    : 'Connection problem: ' + err.message;
-});
 </script>
 </body>
 </html>

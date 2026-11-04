@@ -1,4 +1,11 @@
 <!doctype html>
+<!--
+  COMPUTER PAGE (the "game computer" that plays the music)
+  1. Shows a QR code that opens the phone page with this computer's room code.
+  2. Listens on the message server for which tag the phone sees.
+  3. Plays that tag's song from the beginning, and stops when the phone reports no tag
+     or goes quiet for PHONE_TIMEOUT_MS.
+-->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -25,6 +32,7 @@
 <script src="lib/mqtt.min.js"></script>
 <script src="lib/qrcode.js"></script>
 <script>
+// ---- Settings ----
 // Tag ID -> song file in the songs/ folder (tag 0 is the first line).
 const SONGS = [
   'songs/Frank Sinatra - Jingle Bells 4.mp3',
@@ -32,43 +40,29 @@ const SONGS = [
   'songs/Gene Autry - Rudolph the Red-Nosed Reindeer (Audio) 4.mp3',
   'songs/White Christmas (Official Video) 4.mp3',
 ];
-
-// Free public message server that passes tags from phones to this page, on any network.
+// Phones repeat their tag every second; stop the song if its phone goes quiet this long.
+const PHONE_TIMEOUT_MS = 3000;
+// Free public message server that passes messages between phone and computer on any network.
 const BROKER = 'wss://broker.emqx.io:8084/mqtt';
 
 const statusEl = document.getElementById('status');
 const soundBtn = document.getElementById('sound');
 const audio = new Audio();
-let currentTag = null;
-let tagOwner = null; // the phone that chose the current song
-let ownerHeardAt = 0;
-// Phones repeat their tag every second; stop if the phone that chose the song goes quiet.
-const PHONE_TIMEOUT_MS = 3000;
 
-// Keep the same pairing code on this computer, so a phone link or printed QR keeps working.
-function roomId() {
-  try {
-    const saved = localStorage.getItem('roomId');
-    if (saved) return saved;
-    const id = 'esc-snowglobe-' + Math.random().toString(36).slice(2, 10);
-    localStorage.setItem('roomId', id);
-    return id;
-  } catch {
-    return 'esc-snowglobe-' + Math.random().toString(36).slice(2, 10);
-  }
+let currentTag = null; // the tag whose song is playing, or null
+let tagOwner = null;   // the phone that chose the current song
+let ownerHeardAt = 0;  // when that phone last sent a message
+
+// Room code: saved in this browser so the QR code stays the same (it can be printed).
+let room = localStorage.getItem('roomId');
+if (!room) {
+  room = 'esc-snowglobe-' + Math.random().toString(36).slice(2, 10);
+  localStorage.setItem('roomId', room);
 }
+const topic = 'esc-snowglobe/' + room;
+const presence = topic + '/computer'; // phones read this to tell whether this page is open
 
-function onPhoneMessage(phone, tag) {
-  // Another phone seeing nothing must not stop a song this phone did not start.
-  if (tag === null && phone !== tagOwner) {
-    if (currentTag === null) statusEl.textContent = 'Phone connected. Waiting for a tag';
-    return;
-  }
-  tagOwner = phone;
-  ownerHeardAt = performance.now();
-  setTag(tag);
-}
-
+// ---- Music ----
 function setTag(tag) {
   if (tag === currentTag) return;
   currentTag = tag;
@@ -77,7 +71,7 @@ function setTag(tag) {
     statusEl.textContent = 'Phone connected. Waiting for a tag';
     return;
   }
-  audio.src = SONGS[tag];
+  audio.src = SONGS[tag]; // a new src always starts the song from the beginning
   audio.play().catch(() => setSoundOn(false));
   statusEl.textContent = 'Tag ' + tag + ': playing';
 }
@@ -87,10 +81,10 @@ function setSoundOn(on) {
   soundBtn.textContent = on ? '✓ Sound is on' : '🔊 Click to turn on sound';
 }
 
-// Browsers only play sound after a click on the page.
+// Browsers only allow sound after a click on the page.
 soundBtn.addEventListener('click', () => {
   if (currentTag === null) {
-    // Play and pause once so Safari lets this audio play later without a click.
+    // Play and pause once so Safari lets this audio play later without another click.
     audio.src = SONGS[0];
     audio.play().then(() => { if (currentTag === null) audio.pause(); }, () => setSoundOn(false));
   } else {
@@ -99,10 +93,19 @@ soundBtn.addEventListener('click', () => {
   setSoundOn(true);
 });
 
-const room = roomId();
-const topic = 'esc-snowglobe/' + room;
-// Phones read this to tell whether this page is open.
-const presence = topic + '/computer';
+// ---- Messages from phones ----
+function onPhoneMessage(phone, tag) {
+  // A phone seeing nothing must not stop a song that another phone started.
+  if (tag === null && phone !== tagOwner) {
+    if (currentTag === null) statusEl.textContent = 'Phone connected. Waiting for a tag';
+    return;
+  }
+  tagOwner = phone;
+  ownerHeardAt = performance.now();
+  setTag(tag);
+}
+
+// 'offline' is posted automatically by the server if this page disappears (the "will").
 const client = mqtt.connect(BROKER, { will: { topic: presence, payload: 'offline', retain: true } });
 
 client.on('connect', () => {
@@ -121,6 +124,7 @@ client.on('message', (_, payload) => {
 client.on('offline', () => { statusEl.textContent = 'No internet. Reconnecting…'; });
 addEventListener('pagehide', () => client.publish(presence, 'offline', { retain: true }));
 
+// Stop the music if the phone that chose the song goes quiet (closed, or lost its connection).
 setInterval(() => {
   if (currentTag !== null && performance.now() - ownerHeardAt > PHONE_TIMEOUT_MS) {
     setTag(null);

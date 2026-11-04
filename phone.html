@@ -1,4 +1,11 @@
 <!doctype html>
+<!--
+  PHONE PAGE
+  Opened by scanning the QR code on the computer page (the link ends in #<room code>).
+  1. Connects to the message server and waits until the computer page is open.
+  2. Starts the front camera and looks for AprilTags (family 36h11, IDs 0-3) in every frame.
+  3. Tells the computer which tag is in view (or none), so it can play or stop that tag's song.
+-->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -6,9 +13,11 @@
 <title>ESC Snowglobe</title>
 <style>
   html, body { margin: 0; height: 100%; background: #000; color: #fff; font-family: system-ui, sans-serif; }
+  /* The camera image is drawn on the canvas, mirrored like a selfie camera. */
   canvas { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
   video { display: none; }
-  #guide { position: fixed; top: 50%; left: 50%; width: 60vmin; height: 60vmin; transform: translate(-50%, -60%);
+  /* Visual hint for where to hold the tag. Tags are detected anywhere in the picture. */
+  #guide { position: fixed; top: 50%; left: 50%; width: 85vmin; height: 85vmin; transform: translate(-50%, -55%);
            border: 4px dashed rgba(255, 255, 255, 0.7); border-radius: 16px; pointer-events: none; }
   #status { position: fixed; left: 16px; right: 16px; bottom: calc(24px + env(safe-area-inset-bottom));
             padding: 16px 20px; border-radius: 16px; text-align: center; font-size: 22px; font-weight: 600;
@@ -21,22 +30,24 @@
 <video id="video" playsinline muted></video>
 <canvas id="canvas"></canvas>
 <div id="guide"></div>
-<div id="status">Starting camera…</div>
+<div id="status">Starting…</div>
 
 <script src="lib/cv.js"></script>
 <script src="lib/aruco.js"></script>
 <script src="lib/apriltag_36h11.js"></script>
 <script src="lib/mqtt.min.js"></script>
 <script>
-// Tags 0-3 of the AprilTag 36h11 family (printables in tags/) each pick a song on the computer.
+// ---- Settings ----
+// Tags 0-3 each pick a song on the computer (printable tags are in tags/).
 const TAG_COUNT = 4;
-// How long a tag must stay in view before its song starts, so a quick flash does nothing.
+// A tag must stay in view this long before its song starts, so a quick flash does nothing.
 const START_MS = 500;
-// How long a tag may be out of view before its song stops (covers missed frames).
+// A tag may be out of view this long before its song stops (covers blurry or missed frames).
 const LOST_MS = 500;
-// Frames are downscaled to this width before detection to keep phones fast.
-const DETECT_WIDTH = 480;
-// Free public message server that passes tags to the computer, on any network.
+// Frames are shrunk to this width before looking for tags. Bigger finds smaller or farther tags,
+// but costs more phone power. 800 finds a tag that is about 1/12 of the picture's width.
+const DETECT_WIDTH = 800;
+// Free public message server that passes messages between phone and computer on any network.
 const BROKER = 'wss://broker.emqx.io:8084/mqtt';
 
 const video = document.getElementById('video');
@@ -45,12 +56,14 @@ const ctx = canvas.getContext('2d', { willReadFrequently: true });
 const statusEl = document.getElementById('status');
 const detector = new AR.Detector({ dictionaryName: 'APRILTAG_36h11' });
 
-let currentTag = null;
-// Per tag: when it came into view, and when it was last seen.
-const firstSeen = [];
-const lastSeen = [];
+// The room code after the # in the link; it matches this phone to one computer.
+const room = location.hash.slice(1);
+const topic = 'esc-snowglobe/' + room;
 let client = null;
-let topic = null;
+
+let currentTag = null; // the tag whose song is playing, or null
+const firstSeen = [];  // per tag: when it came into view
+const lastSeen = [];   // per tag: when it was last seen
 let cameraStarted = false;
 
 function show(text, playing = false) {
@@ -59,53 +72,57 @@ function show(text, playing = false) {
   document.body.classList.toggle('playing', playing);
 }
 
-function setTag(tag) {
-  currentTag = tag;
-  sendTag();
-  show(tag === null ? 'Hold a tag inside the box' : '♪ Tag ' + tag + ' is playing', tag !== null);
-}
-
+// ---- Talking to the computer ----
 function sendTag() {
   client.publish(topic + '/tag', JSON.stringify({ phone: client.options.clientId, tag: currentTag }));
 }
 
-async function startCamera() {
-  cameraStarted = true;
-  try {
-    video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
-  } catch (err) {
-    show('Camera blocked: ' + err.message + '. Allow the camera and reload.');
-    return;
-  }
-  await video.play();
-  show('Hold a tag inside the box');
-  requestAnimationFrame(tick);
+function setTag(tag) {
+  currentTag = tag;
+  sendTag();
+  show(tag === null ? 'Hold a tag up to the camera' : '♪ Tag ' + tag + ' is playing', tag !== null);
 }
 
-// The computer's QR code opens this page with its pairing code after the #.
-const roomId = location.hash.slice(1);
-if (!roomId) {
+if (!room) {
   show('Scan the QR code on the game computer');
 } else {
   show('Connecting to the computer…');
-  topic = 'esc-snowglobe/' + roomId;
   client = mqtt.connect(BROKER);
   client.on('connect', () => client.subscribe(topic + '/computer'));
-  // The computer page says 'online' while it is open and 'offline' once it closes.
+  client.on('offline', () => show('No internet. Reconnecting…'));
+  // The computer page posts 'online' while it is open and 'offline' once it closes.
   client.on('message', (_, payload) => {
     if (payload.toString() !== 'online') {
       show('The computer page is closed. Open it again');
     } else if (!cameraStarted) {
       startCamera();
-      // Repeat the current tag so the computer notices if this phone disappears.
+      // Repeat the current tag every second so the computer notices if this phone disappears.
       setInterval(sendTag, 1000);
     } else {
-      show('Hold a tag inside the box');
+      show('Hold a tag up to the camera');
     }
   });
-  client.on('offline', () => show('No internet. Reconnecting…'));
 }
 
+// ---- Camera and tag detection ----
+async function startCamera() {
+  cameraStarted = true;
+  try {
+    // Ask for HD; phones often give a low-resolution picture otherwise, which hides small tags.
+    video.srcObject = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false,
+    });
+  } catch (err) {
+    show('Camera blocked: ' + err.message + '. Allow the camera and reload.');
+    return;
+  }
+  await video.play();
+  show('Hold a tag up to the camera');
+  requestAnimationFrame(tick);
+}
+
+// Runs once per camera frame.
 function tick() {
   canvas.width = DETECT_WIDTH;
   canvas.height = Math.round(DETECT_WIDTH * video.videoHeight / video.videoWidth);
@@ -113,6 +130,8 @@ function tick() {
 
   const markers = detector.detect(ctx.getImageData(0, 0, canvas.width, canvas.height))
     .filter(m => m.id < TAG_COUNT);
+
+  // Remember when each tag appeared and when it was last seen.
   const now = performance.now();
   const inView = id => now - lastSeen[id] <= LOST_MS;
   for (const m of markers) {
@@ -120,14 +139,17 @@ function tick() {
     lastSeen[m.id] = now;
   }
 
+  // Keep the current song while its tag is in view. Otherwise switch to a tag that has been
+  // held steady for START_MS, or stop.
   if (currentTag === null || !inView(currentTag)) {
     const ready = [...Array(TAG_COUNT).keys()].find(id => inView(id) && lastSeen[id] - firstSeen[id] >= START_MS);
     if (ready !== undefined) setTag(ready);
     else if (currentTag !== null) setTag(null);
   }
 
+  // Outline found tags in green.
   ctx.strokeStyle = '#0f0';
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 4;
   for (const m of markers) {
     ctx.beginPath();
     m.corners.forEach(c => ctx.lineTo(c.x, c.y));

@@ -199,18 +199,25 @@ def check_radio(port):
             say("   reader is talking and the board is on WiFi ✓")
             return
         if line and "[wifi] cannot join" in line:
+            ssid = detect_ssid()
+            diagnoses = [
+                "  · a 5 GHz-only network — the Arduino radio is 2.4 GHz only",
+                "  · the board is too far from the access point to associate",
+            ]
+            if detect_password(ssid):
+                diagnoses.append("  · the saved password does not match the network")
+            else:
+                diagnoses.append("  · an open network that still needs a login page before "
+                                 "it works")
             die("The board cannot join this WiFi.",
-                f"Network: {detect_ssid()}\n"
-                "Usual causes, in order:\n"
-                "  · a 5 GHz-only network (the Arduino radio is 2.4 GHz only)\n"
-                "  · the saved password on this Mac is not the one the network wants\n"
-                "  · the network wants a login page on every device\n"
-                "Fastest fix: turn on your phone's hotspot, join the Mac to it, run this again.")
+                f"Network: {ssid}\nUsual causes, in order:\n" + "\n".join(diagnoses) +
+                "\nFastest fix: phone hotspot — join the Mac to it, run this again.")
         die("The board joined WiFi but cannot reach the song server.",
-            "That is the signature of guest/university wifi with a login page: your laptop\n"
-            "gets through after you log in, and the Arduino has no browser to do the same.\n\n"
-            "Turn on your phone's Personal Hotspot, connect this Mac to it, run this again.\n"
-            "That is also the setup to use at the event — no login page, no surprises.")
+            "The network let the board on but dropped its connection outward. Causes:\n"
+            "  · a login/captive page this Mac cleared and the board cannot\n"
+            "  · the network blocks outbound port 1883 (MQTT)\n"
+            "\nTurn on your phone's Personal Hotspot, connect this Mac to it, run this again.\n"
+            "The hotspot avoids both problems and is the safest thing on the night.")
     finally:
         ser.close()
 

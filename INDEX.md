@@ -61,9 +61,15 @@ password from Keychain (empty for open networks), writes both to `config.h`, fla
 then verifies from the serial log that the board reached the broker before touching the
 tags. It never asks for the network name.
 
-**Known constraint:** guest/university wifi with a captive portal cannot work — the board
-has no browser to complete the login. The script detects the failure and says so; the
-answer is a phone hotspot.
+Open networks (empty password) are joined with the one-argument `WiFi.begin(ssid)` —
+passing an empty password string makes the R4 wait for a key that never comes.
+
+Measured on USC guest wifi (open, no portal), 2026-11-06: outbound `broker.emqx.io:1883`
+(MQTT, the board's path) and `:8084` wss (the browser's path) both connect and carry
+publish+subscribe. So this network works for the project as-is.
+
+**Only fail-fast case:** a network that needs a login page, or one that blocks port 1883.
+The script detects either and points at a phone hotspot.
 
 ## Open
 

@@ -89,6 +89,18 @@ bool slugFromTag(char *slug, size_t cap) {
 bool wifiLinked = false, wifiWarned = false, wifiTried = false;
 uint32_t wifiStartedAt = 0;
 
+// An open network (a guest SSID with no password) must be joined with the
+// one-argument begin(), otherwise the board waits for a key that will never come.
+void joinWifi() {
+  if (strlen(WIFI_PASSWORD) == 0) {
+    logLine("[wifi] joining \"%s\" (open, no password)", WIFI_SSID);
+    WiFi.begin(WIFI_SSID);
+  } else {
+    logLine("[wifi] joining \"%s\"", WIFI_SSID);
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  }
+}
+
 bool networkUp() {
   if (WiFi.status() == WL_CONNECTED) {
     if (!wifiLinked) {
@@ -104,8 +116,7 @@ bool networkUp() {
     wifiTried = true;
     wifiStartedAt = now;
     lastWifiTry = now;
-    logLine("[wifi] joining \"%s\"", WIFI_SSID);
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    joinWifi();
     return false;
   }
   // Give up on a stuck join after 15 s, then keep retrying (a router reboot is common).
@@ -114,7 +125,7 @@ bool networkUp() {
     wifiStartedAt = now;
     logLine("[wifi] retrying \"%s\"", WIFI_SSID);
     WiFi.end();
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    joinWifi();
   }
   if (!wifiWarned && now - wifiStartedAt > 15000) {
     wifiWarned = true;

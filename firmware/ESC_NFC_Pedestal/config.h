@@ -12,7 +12,7 @@
 
 // Room code. MUST match the code shown on the computer page (it comes from the
 // page's ?room= link or the box on screen). Copy/paste it, case-sensitive.
-#define ROOM_CODE "esc-snowglobe-1a2b3c4d"
+#define ROOM_CODE "esc-snowglobe-7f3a91c2"
 
 // Free public broker the computer page also uses. Port 1883 = plain TCP.
 #define BROKER_HOST "broker.emqx.io"

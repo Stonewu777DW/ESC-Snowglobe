@@ -39,7 +39,24 @@ and the software.
 - The printed pedestal, and one tag per globe
 - A computer with a browser and speakers
 
-## Setup, in order
+## Setup
+
+### The short way
+
+Do the seven jumper wires (docs/WIRING.md), plug the Arduino into the Mac, then:
+
+```bash
+python3 tools/setup.py
+```
+
+It asks for the WiFi name and password, installs the libraries, flashes the pedestal,
+then tells you when to hold each sticker on the reader and writes all four. It finishes
+by putting the pedestal firmware back on the board, so there is nothing left to upload.
+Re-run it any time to redo a sticker, or to change WiFi.
+
+`python3 tools/setup.py --dry-run` shows the whole plan without touching anything.
+
+### The manual way
 
 **1. Wire the reader** — see [docs/WIRING.md](docs/WIRING.md). Seven wires, RC522 runs
 on **3.3 V**, never 5 V.
@@ -128,6 +145,7 @@ player.js                      its logic, isolated so it can be tested
 songs/                         the mp3 files
 firmware/ESC_NFC_Pedestal/     the pedestal sketch + config.h + songs.h
 firmware/ESC_Tag_Programmer/   writes song payloads onto NFC stickers
+tools/setup.py                 does steps 2-3 for you, end to end
 firmware/libraries/ESCShared/  NFC payload format, timing rules, tag detection
 tests/                         C++ and node tests
 docs/WIRING.md                 pin-by-pin wiring

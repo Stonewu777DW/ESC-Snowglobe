@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-ESC Snowglobe — one-command setup.
+ESC Snowglobe — one-command setup. No questions about WiFi: it reads the network
+this Mac is on, takes the password from Keychain if there is one, and writes both
+into the sketch.
 
-    python3 tools/setup.py
+    python3 tools/setup.py                 # WiFi, flash, write the four stickers
+    python3 tools/setup.py --no-tags       # WiFi + flash only
+    python3 tools/setup.py --dry-run       # print the plan, touch nothing
 
-It asks two questions (WiFi name and password), then does everything else:
-installs the libraries, flashes the pedestal, walks you through writing the four
-globe stickers one at a time, and puts the pedestal firmware back on the board.
-
-    python3 tools/setup.py --dry-run     # show what it would do, touch nothing
+If this network has a login page (university/guest wifi), the board cannot use it —
+the script says so plainly and tells you to switch to a phone hotspot and re-run.
 """
-import getpass
 import glob
 import re
 import subprocess
@@ -20,7 +20,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 FQBN = "arduino:renesas_uno:unor4wifi"
-LIBS = "--libraries"
 SKETCHES = {
     "pedestal": ROOT / "firmware" / "ESC_NFC_Pedestal",
     "tags": ROOT / "firmware" / "ESC_Tag_Programmer",
@@ -31,6 +30,7 @@ SONGS = [("jingle-bells", "Jingle Bells"), ("frosty", "Frosty the Snowman"),
 BAUD = 115200
 
 dry = "--dry-run" in sys.argv
+skip_tags = "--no-tags" in sys.argv
 
 
 def say(text=""):
@@ -40,7 +40,7 @@ def say(text=""):
 def step(n, total, text):
     say()
     say(f"[{n}/{total}] {text}")
-    say("-" * 62)
+    say("-" * 64)
 
 
 def run(cmd, **kw):
@@ -58,8 +58,64 @@ def die(text, hint=""):
     sys.exit(1)
 
 
-# --- 1. board --------------------------------------------------------------
-def find_port(wait_seconds=60):
+# --- what network is this Mac on? -----------------------------------------
+def detect_ssid():
+    """The Wi-Fi network this Mac is joined to, or None."""
+    try:
+        out = subprocess.run(["ipconfig", "getsummary", "en0"],
+                             capture_output=True, text=True).stdout
+        match = re.search(r"^\s*SSID\s*:\s*(.+)$", out, re.MULTILINE)
+        if match:
+            return match.group(1).strip()
+    except OSError:
+        pass
+    try:
+        out = subprocess.run(["networksetup", "-getairportnetwork", "en0"],
+                             capture_output=True, text=True).stdout
+        match = re.search(r"Current Wi-Fi Network:\s*(.+)", out)
+        if match:
+            return match.group(1).strip()
+    except OSError:
+        pass
+    return None
+
+
+def detect_password(ssid):
+    """The saved Wi-Fi password for that network, or '' for an open network.
+    Never printed. A Keychain prompt would appear here, which is why stdin is
+    closed and the lookup is time-limited."""
+    try:
+        found = subprocess.run(
+            ["security", "find-generic-password", "-D", "AirPort network password",
+             "-a", ssid, "-w"],
+            capture_output=True, text=True, timeout=6, stdin=subprocess.DEVNULL,
+        )
+        if found.returncode == 0:
+            return found.stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return ""
+
+
+# --- config.h --------------------------------------------------------------
+def read_config():
+    return CONFIG.read_text()
+
+
+def room_code():
+    match = re.search(r'#define ROOM_CODE\s+"([^"]*)"', read_config())
+    return match.group(1) if match else ""
+
+
+def set_wifi(ssid, password):
+    text = read_config()
+    text = re.sub(r'#define WIFI_SSID\s+"[^"]*"', f'#define WIFI_SSID     "{ssid}"', text)
+    text = re.sub(r'#define WIFI_PASSWORD\s+"[^"]*"', f'#define WIFI_PASSWORD "{password}"', text)
+    CONFIG.write_text(text)
+
+
+# --- board -----------------------------------------------------------------
+def find_port(wait_seconds=90):
     ports = sorted(glob.glob("/dev/cu.usbmodem*"))
     if ports:
         return ports[0]
@@ -73,66 +129,17 @@ def find_port(wait_seconds=60):
     return None
 
 
-# --- 2. WiFi ---------------------------------------------------------------
-def read_config():
-    return CONFIG.read_text()
+def ensure_libraries():
+    if dry:
+        say("   would check MFRC522 and ArduinoMqttClient are installed")
+        return
+    listed = run(["arduino-cli", "lib", "list"]).stdout
+    for lib in ("MFRC522", "ArduinoMqttClient"):
+        if lib not in listed:
+            say(f"   installing {lib}…")
+            run(["arduino-cli", "lib", "install", lib])
 
 
-def current_wifi(text):
-    ssid = re.search(r'#define WIFI_SSID\s+"([^"]*)"', text)
-    password = re.search(r'#define WIFI_PASSWORD\s+"([^"]*)"', text)
-    return (ssid.group(1) if ssid else ""), (password.group(1) if password else "")
-
-
-def set_wifi(ssid, password):
-    text = read_config()
-    text = re.sub(r'#define WIFI_SSID\s+"[^"]*"', f'#define WIFI_SSID     "{ssid}"', text)
-    text = re.sub(r'#define WIFI_PASSWORD\s+"[^"]*"', f'#define WIFI_PASSWORD "{password}"', text)
-    CONFIG.write_text(text)
-
-
-def room_code():
-    match = re.search(r'#define ROOM_CODE\s+"([^"]*)"', read_config())
-    return match.group(1) if match else ""
-
-
-# --- 3. serial -------------------------------------------------------------
-def open_serial(port):
-    import serial  # pyserial
-    time.sleep(1.5)
-    return serial.Serial(port, BAUD, timeout=0.3)
-
-
-def drain(ser, seconds):
-    """Collect whatever the board prints for a while."""
-    lines, deadline = [], time.time() + seconds
-    while time.time() < deadline:
-        raw = ser.readline()
-        if not raw:
-            continue
-        line = raw.decode("utf-8", "replace").strip()
-        if line:
-            lines.append(line)
-            say("   board: " + line)
-    return lines
-
-
-def wait_for(ser, needle, seconds):
-    lines, deadline = [], time.time() + seconds
-    while time.time() < deadline:
-        raw = ser.readline()
-        if not raw:
-            continue
-        line = raw.decode("utf-8", "replace").strip()
-        if line:
-            lines.append(line)
-            say("   board: " + line)
-            if needle in line:
-                return True, lines
-    return False, lines
-
-
-# --- 4. flashing -----------------------------------------------------------
 def flash(sketch, port):
     name = SKETCHES[sketch]
     say(f"   building {name.name}…")
@@ -145,27 +152,117 @@ def flash(sketch, port):
                     "--libraries", ROOT / "firmware" / "libraries", name])
     if uploaded.returncode != 0:
         say(uploaded.stdout[-1500:] + uploaded.stderr[-1500:])
-        die(f"Could not upload {name.name}.", "Is another program using the port? Close the Serial Monitor.")
+        die(f"Could not upload {name.name}.",
+            "Close any Serial Monitor or other program using the port, then run this again.")
     say(f"   uploaded {name.name}")
 
 
-def ensure_libraries():
+# --- serial ----------------------------------------------------------------
+def open_serial(port):
+    import serial
+    time.sleep(1.5)
+    return serial.Serial(port, BAUD, timeout=0.3)
+
+
+def read_until(ser, needles, seconds):
+    """Read lines until one contains any needle. Returns (line or None, all lines)."""
+    lines, deadline = [], time.time() + seconds
+    while time.time() < deadline:
+        raw = ser.readline()
+        if not raw:
+            continue
+        line = raw.decode("utf-8", "replace").strip()
+        if not line:
+            continue
+        lines.append(line)
+        say("   board: " + line)
+        if any(n in line for n in needles):
+            return line, lines
+    return None, lines
+
+
+def check_radio(port):
+    """The flash is on the board; make it prove the reader and the network work."""
+    # The reader is checked from the boot banner, the network from the MQTT log.
     if dry:
-        say("   would check that MFRC522 and ArduinoMqttClient are installed")
+        say("   would confirm the RC522 answers, then that WiFi reaches the song server")
         return
-    listed = run(["arduino-cli", "lib", "list"]).stdout
-    for lib in ("MFRC522", "ArduinoMqttClient"):
-        if lib not in listed:
-            say(f"   installing {lib}…")
-            run(["arduino-cli", "lib", "install", lib])
+    ser = open_serial(port)
+    try:
+        line, lines = read_until(
+            ser, ["[mqtt] connected", "[wifi] cannot join", "[mqtt] failed"], 50)
+        if any("not answering" in l for l in lines):
+            die("The reader is not responding.",
+                "Check the seven wires. Usual ones: SDA must be D10, and 3.3 V — never 5 V.\n"
+                "Then run this again.")
+        if line and "[mqtt] connected" in line:
+            say("   reader is talking and the board is on WiFi ✓")
+            return
+        if line and "[wifi] cannot join" in line:
+            die("The board cannot join this WiFi.",
+                f"Network: {detect_ssid()}\n"
+                "Usual causes, in order:\n"
+                "  · a 5 GHz-only network (the Arduino radio is 2.4 GHz only)\n"
+                "  · the saved password on this Mac is not the one the network wants\n"
+                "  · the network wants a login page on every device\n"
+                "Fastest fix: turn on your phone's hotspot, join the Mac to it, run this again.")
+        die("The board joined WiFi but cannot reach the song server.",
+            "That is the signature of guest/university wifi with a login page: your laptop\n"
+            "gets through after you log in, and the Arduino has no browser to do the same.\n\n"
+            "Turn on your phone's Personal Hotspot, connect this Mac to it, run this again.\n"
+            "That is also the setup to use at the event — no login page, no surprises.")
+    finally:
+        ser.close()
 
 
-# --- 5. main ---------------------------------------------------------------
+# --- tags ------------------------------------------------------------------
+def write_tags(port):
+    flash("tags", port)
+    if dry:
+        for slug, _ in SONGS:
+            say(f"   would write “{slug}” to its sticker")
+        return []
+    ser = open_serial(port)
+    time.sleep(1.5)
+    failed = []
+    say()
+    say("  For each sticker: hold it flat against the reader, then press Enter.")
+    say("  Write the song name on the sticker with a marker straight after.")
+    try:
+        for slug, title in SONGS:
+            while True:
+                input(f"\n   “{title}” sticker ready  →  press Enter ")
+                ser.reset_input_buffer()
+                ser.write(f"write {slug}\n".encode())
+                start = time.time()
+                ok = False
+                while time.time() - start < 12:
+                    raw = ser.readline()
+                    if not raw:
+                        continue
+                    line = raw.decode("utf-8", "replace").strip()
+                    if line.startswith("Found") or line.startswith("OK —"):
+                        say("   board: " + line)
+                    if line.startswith("OK —"):
+                        ok = True
+                        break
+                if ok:
+                    say(f"   ✓ {title} sticker done")
+                    break
+                say("   ✗ no sticker seen, or the write failed")
+                if input("   try again? [Y/n] ").strip().lower() == "n":
+                    failed.append(title)
+                    break
+    finally:
+        ser.close()
+    return failed
+
+
+# --- main ------------------------------------------------------------------
 def main():
     say()
     say("  ESC Snowglobe — setup")
     say("  A snow globe on the pedestal plays its song on this computer.")
-    say("  This script wires up the software. It cannot do the seven jumper wires.")
     if dry:
         say("  (dry run: nothing will be flashed or written)")
 
@@ -174,86 +271,53 @@ def main():
     if port is None:
         die("No Arduino found on USB.",
             "Plug the board into this Mac with a USB-C cable, then run this again.\n"
-            "If it is plugged in: try a different cable (some are charge-only).")
+            "If it is already plugged in, try another cable — some are charge-only.")
     say(f"   found it on {port}")
 
-    step(2, 5, "WiFi")
-    ssid, password = current_wifi(read_config())
-    if ssid:
-        say(f'   config.h already has WiFi "{ssid}"')
-        if input("   use it? [Y/n] ").strip().lower() == "n":
-            ssid = ""
+    step(2, 5, "WiFi (read from this Mac, not typed)")
+    ssid = detect_ssid()
     if not ssid:
-        ssid = input("   WiFi network name (2.4 GHz only): ").strip()
-        password = getpass.getpass("   WiFi password (not shown, not stored in chat): ")
-        if not ssid:
-            die("No WiFi name given.")
-        if dry:
-            say("   would save it to config.h")
-        else:
-            set_wifi(ssid, password)
-            say("   saved to config.h")
+        die("This Mac is not on WiFi.",
+            "Join a WiFi network first — your phone's Personal Hotspot is the reliable "
+            "choice — then run this again.")
+    password = detect_password(ssid)
+    say(f"   network:  {ssid}")
+    say("   password: " + ("open network, none needed" if not password
+                           else f"found in Keychain ({len(password)} characters)"))
+    if dry:
+        say("   would save both to config.h")
+    else:
+        set_wifi(ssid, password)
+        say("   saved to config.h")
     say(f"   room code: {room_code()}")
 
-    step(3, 5, "Flashing the pedestal reader")
+    step(3, 5, "Flashing the pedestal")
     ensure_libraries()
     flash("pedestal", port)
-    if not dry:
-        ser = open_serial(port)
-        lines = drain(ser, 4)
-        ser.close()
-        if any("RC522 ok" in line for line in lines):
-            say("   reader is talking. ✓")
-        elif any("not answering" in line for line in lines):
-            die("The reader is not responding.",
-                "Check the seven wires. The usual ones: SDA must be D10, and 3.3 V — not 5 V.\n"
-                "Then run this again.")
 
-    step(4, 5, "Writing the four globe stickers")
-    flash("tags", port)
-    if dry:
-        for slug, title in SONGS:
-            say(f"   would write “{slug}” to the {title} sticker")
-        step(5, 5, "Putting the pedestal firmware back")
-        say("   would flash ESC_NFC_Pedestal again")
+    step(4, 5, "Checking the reader and the network")
+    check_radio(port)
+
+    step(5, 5, "Writing the four globe stickers")
+    if skip_tags:
+        say("   skipped (--no-tags)")
+    else:
+        failed = write_tags(port)
         say()
-        say("  Dry run finished. Everything above is what the real run does.")
-        return
-
-    ser = open_serial(port)
-    drain(ser, 2)
-    say()
-    say("  For each sticker: hold it flat against the RC522, then press Enter.")
-    say("  Write the song name on the sticker with a marker straight after.")
-    failed = []
-    for slug, title in SONGS:
-        while True:
-            input(f"\n   holder ready for “{title}”  →  press Enter ")
-            ser.reset_input_buffer()
-            ser.write(f"write {slug}\n".encode())
-            ok, lines = wait_for(ser, "OK —", 12)
-            if ok:
-                say(f"   ✓ {title} sticker done")
-                break
-            say(f"   ✗ that did not work ({'no tag' if not any('Found' in l for l in lines) else 'write failed'})")
-            if input("   try again? [Y/n] ").strip().lower() == "n":
-                failed.append(title)
-                break
-    ser.close()
-
-    step(5, 5, "Putting the pedestal firmware back")
-    flash("pedestal", port)
+        say("   putting the pedestal firmware back on the board")
+        flash("pedestal", port)
+        if failed:
+            say()
+            say("  Stickers that failed: " + ", ".join(failed))
+            say("  Re-run to retry them; those globes stay silent until they are written.")
 
     say()
-    say("=" * 62)
-    say("  DONE. The pedestal is ready.")
-    say("=" * 62)
-    if failed:
-        say("  Stickers that failed: " + ", ".join(failed))
-        say("  Those globes will do nothing until they are written. Run this again to retry.")
+    say("=" * 64)
+    say("  DONE.")
+    say("=" * 64)
     say()
     say("  To play music:")
-    say(f"    1. in this folder:  python3 -m http.server 8000")
+    say("    1. in this folder:  python3 -m http.server 8000")
     say(f"    2. open:            http://localhost:8000/?room={room_code()}")
     say("    3. click the yellow sound button")
     say("    4. set a globe on the pedestal")

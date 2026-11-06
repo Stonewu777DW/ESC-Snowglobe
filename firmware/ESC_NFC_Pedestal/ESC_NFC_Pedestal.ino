@@ -86,14 +86,40 @@ bool slugFromTag(char *slug, size_t cap) {
 }
 
 // --- network ---------------------------------------------------------------
+bool wifiLinked = false, wifiWarned = false, wifiTried = false;
+uint32_t wifiStartedAt = 0;
+
 bool networkUp() {
-  if (WiFi.status() == WL_CONNECTED) return true;
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!wifiLinked) {
+      wifiLinked = true;
+      logLine("[wifi] joined \"%s\"", WIFI_SSID);
+    }
+    return true;
+  }
+  wifiLinked = false;
+
   uint32_t now = millis();
-  if (now - lastWifiTry < WIFI_RETRY_MS) return false;
-  lastWifiTry = now;
-  logLine("[wifi] connecting to %s", WIFI_SSID);
-  WiFi.end();
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  if (!wifiTried) {  // first attempt, right after boot
+    wifiTried = true;
+    wifiStartedAt = now;
+    lastWifiTry = now;
+    logLine("[wifi] joining \"%s\"", WIFI_SSID);
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    return false;
+  }
+  // Give up on a stuck join after 15 s, then keep retrying (a router reboot is common).
+  if (now - wifiStartedAt > 15000 && now - lastWifiTry >= WIFI_RETRY_MS) {
+    lastWifiTry = now;
+    wifiStartedAt = now;
+    logLine("[wifi] retrying \"%s\"", WIFI_SSID);
+    WiFi.end();
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  }
+  if (!wifiWarned && now - wifiStartedAt > 15000) {
+    wifiWarned = true;
+    logLine("[wifi] cannot join \"%s\" (status %d)", WIFI_SSID, WiFi.status());
+  }
   return false;
 }
 

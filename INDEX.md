@@ -54,6 +54,17 @@ docs/                 WIRING.md, TAGS.md
    wake it. See `firmware/libraries/ESCShared/src/tagdetect.h`.
 5. The RC522 is 3.3 V only.
 
+## Setup is automatic
+
+`tools/setup.py` reads the current Wi-Fi SSID (`ipconfig getsummary en0`), pulls the
+password from Keychain (empty for open networks), writes both to `config.h`, flashes,
+then verifies from the serial log that the board reached the broker before touching the
+tags. It never asks for the network name.
+
+**Known constraint:** guest/university wifi with a captive portal cannot work — the board
+has no browser to complete the login. The script detects the failure and says so; the
+answer is a phone hotspot.
+
 ## Open
 
 - Flash and confirm on real hardware: continuous read while the globe sits still,

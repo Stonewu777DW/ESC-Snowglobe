@@ -49,10 +49,15 @@ Do the seven jumper wires (docs/WIRING.md), plug the Arduino into the Mac, then:
 python3 tools/setup.py
 ```
 
-It asks for the WiFi name and password, installs the libraries, flashes the pedestal,
-then tells you when to hold each sticker on the reader and writes all four. It finishes
-by putting the pedestal firmware back on the board, so there is nothing left to upload.
-Re-run it any time to redo a sticker, or to change WiFi.
+It does not ask about WiFi — it reads the network this Mac is joined to, takes the
+password from Keychain if there is one, and writes both into the sketch. Then it flashes
+the pedestal, makes the board prove it can reach the song server, and tells you when to
+hold each sticker on the reader while it writes all four. It finishes by putting the
+pedestal firmware back, so there is nothing left to upload.
+
+**On university or guest wifi with a login page this will stop and say so** — the
+Arduino has no browser, so it can never clear that page. Turn on your phone's Personal
+Hotspot, join the Mac to it, run the script again, and use the hotspot at the event.
 
 `python3 tools/setup.py --dry-run` shows the whole plan without touching anything.
 
@@ -69,8 +74,9 @@ arduino-cli compile --fqbn arduino:renesas_uno:unor4wifi --libraries firmware/li
 arduino-cli upload  --fqbn arduino:renesas_uno:unor4wifi --libraries firmware/libraries -p /dev/cu.usbmodemXXXX firmware/ESC_NFC_Pedestal
 ```
 
-Edit `firmware/ESC_NFC_Pedestal/config.h` first: `WIFI_SSID`, `WIFI_PASSWORD`, and
-`ROOM_CODE` (make up any code, e.g. `esc-snowglobe-7f3a91c2`).
+`tools/setup.py` fills in `WIFI_SSID` and `WIFI_PASSWORD` for you. `ROOM_CODE` is
+already set (make up your own if you like, e.g. `esc-snowglobe-7f3a91c2`) — it only has
+to match what the page uses.
 
 **3. Program the NFC stickers** — see [docs/TAGS.md](docs/TAGS.md). Flash
 `firmware/ESC_Tag_Programmer`, open the serial monitor at 115200, hold a sticker on

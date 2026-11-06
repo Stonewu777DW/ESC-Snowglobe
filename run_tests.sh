@@ -21,6 +21,16 @@ fi
 node --test --test-timeout=20000 tests/player.test.mjs tests/page.test.mjs | tail -9
 
 echo
+echo "== setup script plans the right thing (dry run, no board touched)"
+out=$(printf 'n\nSmokeNet\n' | python3 tools/setup.py --dry-run 2>&1)
+for slug in jingle-bells frosty rudolph white-christmas; do
+  grep -q "would write .$slug." <<<"$out" || { echo "MISSING sticker $slug"; exit 1; }
+done
+grep -q "would run: arduino-cli upload" <<<"$out" || { echo "MISSING upload step"; exit 1; }
+grep -q "would save it to config.h" <<<"$out" || { echo "MISSING wifi save step"; exit 1; }
+echo "PASS — 4 stickers, uploads, and the WiFi save are all planned"
+
+echo
 echo "== firmware compiles for the UNO R4 WiFi"
 for sketch in ESC_NFC_Pedestal ESC_Tag_Programmer; do
   printf '%-22s ' "$sketch"

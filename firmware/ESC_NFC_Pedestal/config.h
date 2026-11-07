@@ -24,6 +24,9 @@
 #define HEARTBEAT_MS  1000   // repeat "this tag is playing" while it stays on the pedestal
 #define POLL_MS       60     // how often the reader looks for a tag
 #define WIFI_RETRY_MS 5000
+// How long to leave one association attempt alone before restarting it. The R4 can
+// take ~20 s to join; retrying sooner aborts the attempt that was about to succeed.
+#define WIFI_JOIN_TIMEOUT_MS 25000
 #define MQTT_RETRY_MS 3000
 
 // --- Pins (ELEGOO UNO R4 WiFi kit, RC522 on SPI) ---------------------------

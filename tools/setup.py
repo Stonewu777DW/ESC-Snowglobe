@@ -196,13 +196,15 @@ def check_radio(port):
         return
     ser = open_serial(port)
     try:
+        # Give a join the full 25 s the firmware allows, plus the MQTT connect.
         line, lines = read_until(
-            ser, ["[mqtt] connected", "[wifi] cannot join", "[mqtt] failed"], 50)
+            ser, ["[mqtt] connected", "[wifi] cannot join", "[mqtt] failed"], 60)
+        joined = any("[wifi] joined" in l for l in lines)
         if any("not answering" in l for l in lines):
             die("The reader is not responding.",
                 "Check the seven wires. Usual ones: SDA must be D10, and 3.3 V — never 5 V.\n"
                 "Then run this again.")
-        if line and "[mqtt] connected" in line:
+        if any("[mqtt] connected" in l for l in lines):
             say("   reader is talking and the board is on WiFi ✓")
             return
         if line and "[wifi] cannot join" in line:
@@ -219,6 +221,12 @@ def check_radio(port):
             die("The board cannot join this WiFi.",
                 f"Network: {ssid}\nUsual causes, in order:\n" + "\n".join(diagnoses) +
                 "\nFastest fix: phone hotspot — join the Mac to it, run this again.")
+        if not joined and not (line and "[wifi] cannot join" in line):
+            die("The board has not joined WiFi yet.",
+                f"Network: {detect_ssid()}\n"
+                "The R4 can take ~20 s to associate; this run gave up before it settled.\n"
+                "Run this again — the firmware now waits a full 25 s before retrying, which\n"
+                "was the bug: a 5 s retry loop aborted every join before it could finish.")
         die("The board joined WiFi but cannot reach the song server.",
             "The network let the board on but dropped its connection outward. Causes:\n"
             "  · a login/captive page this Mac cleared and the board cannot\n"

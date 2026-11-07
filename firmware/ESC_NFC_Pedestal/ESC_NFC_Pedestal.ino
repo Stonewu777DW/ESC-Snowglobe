@@ -120,17 +120,21 @@ bool networkUp() {
     joinWifi();
     return false;
   }
-  // Give up on a stuck join after 15 s, then keep retrying (a router reboot is common).
-  if (now - wifiStartedAt > 15000 && now - lastWifiTry >= WIFI_RETRY_MS) {
+  // Association on the R4 takes up to ~20 s. Restarting an attempt inside that window
+  // is what kept this board off USC Guest Wireless: a retry loop on a 5 s timer
+  // aborted every join before it could finish. So wait the full timeout before
+  // touching anything, and never call WiFi.end() - the ESP32 re-begin is enough and
+  // end() kills a join that is still in progress.
+  if (now - wifiStartedAt >= WIFI_JOIN_TIMEOUT_MS && now - lastWifiTry >= WIFI_RETRY_MS) {
     lastWifiTry = now;
     wifiStartedAt = now;
-    logLine("[wifi] retrying \"%s\"", WIFI_SSID);
-    WiFi.end();
+    logLine("[wifi] retrying \"%s\" (status %d)", WIFI_SSID, WiFi.status());
     joinWifi();
   }
-  if (!wifiWarned && now - wifiStartedAt > 15000) {
+  if (!wifiWarned && now - wifiStartedAt >= WIFI_JOIN_TIMEOUT_MS) {
     wifiWarned = true;
-    logLine("[wifi] cannot join \"%s\" (status %d)", WIFI_SSID, WiFi.status());
+    logLine("[wifi] cannot join \"%s\" after %u ms (status %d)",
+            WIFI_SSID, (unsigned)WIFI_JOIN_TIMEOUT_MS, WiFi.status());
   }
   return false;
 }

@@ -74,11 +74,15 @@ String uidToHex() {
 bool slugFromTag(char *slug, size_t cap) {
   uint8_t block[18];
   uint8_t data[NDEF_READ_PAGES * 16];
+  // One page at a time. A 16-byte block read is unreliable on this clone chip (the
+  // same silicon that only accepts 4-byte writes), so page reads are the safe path.
   for (uint8_t r = 0; r < NDEF_READ_PAGES; r++) {
     uint8_t page = 4 + r * 4;  // user memory of an NTAG213/215/216 starts at page 4
-    uint8_t size = sizeof(block);
-    if (rfid.MIFARE_Read(page, block, &size) != MFRC522::STATUS_OK) return false;
-    memcpy(data + r * 16, block, 16);
+    for (uint8_t k = 0; k < 4; k++) {
+      uint8_t size = sizeof(block);
+      if (rfid.MIFARE_Read(page + k, block, &size) != MFRC522::STATUS_OK) return false;
+      memcpy(data + r * 16 + k * 4, block, 4);
+    }
   }
   char text[64];
   if (!ndefParseText(data, sizeof(data), text, sizeof(text))) return false;

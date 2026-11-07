@@ -20,10 +20,12 @@ struct UidSong {
 };
 
 static const UidSong UID_SONGS[] = {
-  // {"04A1B2C3D4E580", "jingle-bells"},
-  // {"04C1D2E3F4A600", "frosty"},
-  // {"04E1F2A3B4C700", "rudolph"},
-  // {"0401A2B3C4D800", "white-christmas"},
+  // The four globes as programmed on 2026-11-06 (UIDs read off the reader itself).
+  // These make each globe work even if its NDEF payload read comes back garbled.
+  {"04EE67B5D32A81", "jingle-bells"},     // bell globe
+  {"04E767B5D32A81", "rudolph"},          // reindeer
+  {"04E867B5D32A81", "frosty"},           // snowman
+  {"04E967B5D32A81", "white-christmas"},  // bunny
 };
 static const size_t UID_SONG_COUNT = sizeof(UID_SONGS) / sizeof(UID_SONGS[0]);
 

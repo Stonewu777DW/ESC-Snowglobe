@@ -71,12 +71,21 @@ publish+subscribe. So this network works for the project as-is.
 **Only fail-fast case:** a network that needs a login page, or one that blocks port 1883.
 The script detects either and points at a phone hotspot.
 
-## Harness facts (checked against vendor docs, not assumed)
+The join is owned entirely by `networkUp()` — `setup()` must not call `WiFi.begin()`
+itself, or an open network gets a half-started association with an empty password.
 
-- The UNO R4 WiFi has **female** headers (Arduino R4 sales brief: "female pin headers").
-- An RC522 has **male** pins, and its 8-pin header ships loose and needs soldering.
-- Therefore the leads are **female-to-male**, not the female-to-female that Pi/R3 guides
-  recommend. See `docs/WIRING.md`.
+## Harness facts (from this owner's kit, not from generic tutorials)
+
+- Board: **Arduino UNO R4 WiFi**, USB descriptor `UNO WiFi R4 CMSIS-DAP` (from
+  `~/Developer/Arduino/HANDOFF.md`).
+- Kit: **ELEGOO UNO R4 WiFi Super Starter Kit EL-KIT-0025** — contains the RC522 module
+  (its lesson 2.20 uses SS **D10**, RST **D9**) and 20 female-to-male Dupont wires.
+  Kit modules ship with headers fitted; nothing to solder.
+- The R4 has **female** headers, the RC522 has **male** pins → the leads are
+  **female-to-male**. Female-to-female (what most RC522 tutorials say) needs an R3 or a
+  Pi, both male-pinned. See `docs/WIRING.md`.
+- Tags: NTAG213/215/216 stickers. The MIFARE fobs/cards that ship with the module are
+  Classic — usable only through `songs.h` UID mapping, never written as NDEF.
 
 ## Open
 

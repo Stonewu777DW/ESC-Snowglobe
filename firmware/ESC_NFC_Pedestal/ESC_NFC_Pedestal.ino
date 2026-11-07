@@ -285,10 +285,10 @@ void setup() {
   Serial.print("reader id: ");
   Serial.println(readerId);
 
+  // No begin() here: networkUp() owns the join, so an open network goes through
+  // joinWifi() and there is never a half-started association to fight with.
   if (strlen(WIFI_SSID) == 0) {
     Serial.println("No WIFI_SSID in config.h — running serial-only. Set it to talk to the page.");
-  } else {
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   }
 }
 

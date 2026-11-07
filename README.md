@@ -19,7 +19,7 @@ there is no phone, no front camera, no QR code and nothing to hold up.
    globe with NFC sticker on its base
         │  sits in the dish on the pedestal
    ┌────▼─────────────────────────────┐
-   │ thin printed top  (~2 mm of PLA) │   ← tag reads through this
+   │ 0.6 mm PLA roof  (2.2 mm to tag) │   ← tag reads through this
    │ RC522 reader, antenna face up    │
    │ Arduino UNO R4 WiFi   ──── WiFi ─┼──► broker.emqx.io ──► index.html plays the mp3
    └──────────────────────────────────┘
@@ -29,16 +29,21 @@ The 3D-printed pedestal, cradle ring and the 2.2 mm tag-to-antenna gap live in t
 model project: `~/Developer/EscapeSC-NFC-Pedestal`. This repo owns the electronics
 and the software.
 
-## What you need
+## Your kit — everything is already in it
 
-- Arduino UNO R4 WiFi (the ELEGOO UNO R4 WiFi kit has everything below)
-- RC522 RFID module — 13.56 MHz, the one in the kit's lesson 2.20
-- 7 **female-to-male** jumpers (socket end on the RC522's pins, pin end into the
-  Arduino's female headers)
-- NFC stickers: **NTAG213, NTAG215 or NTAG216** (13.56 MHz, MIFARE Ultralight family).
-  NTAG213 is plenty for one short string.
-- The printed pedestal, and one tag per globe
-- A computer with a browser and speakers
+| Part | Where it comes from |
+|---|---|
+| Arduino UNO R4 WiFi | the board you have (USB descriptor `UNO WiFi R4 CMSIS-DAP`) |
+| RC522 RFID module, 13.56 MHz | **in the kit** — ELEGOO EL-KIT-0025 lesson 2.20, pins SS **D10**, RST **D9** |
+| 7 jumper leads | **in the kit** — its 20 female-to-male Dupont wires; the lesson specifies F-M |
+| MIFARE fobs/cards | come with the RC522 module — usable only via the UID table, see `docs/TAGS.md` |
+| NFC stickers | **NTAG213** — ordered separately, one per globe. 213 is plenty for one short string |
+| Printed pedestal | `~/Developer/EscapeSC-NFC-Pedestal` v9: Body, TopPlate, BaseLid, CradleRing ×4 |
+| Computer | any laptop with a browser and speakers |
+
+Nothing else to buy. The leads are **female-to-male**: socket end over the RC522's pins,
+pin end into the R4's female headers. (Female-to-female, which most RC522 tutorials say,
+only works on an UNO R3 or a Pi — both of those have male header pins.)
 
 ## Setup
 
@@ -56,16 +61,16 @@ the pedestal, makes the board prove it can reach the song server, and tells you 
 hold each sticker on the reader while it writes all four. It finishes by putting the
 pedestal firmware back, so there is nothing left to upload.
 
-**On university or guest wifi with a login page this will stop and say so** — the
-Arduino has no browser, so it can never clear that page. Turn on your phone's Personal
-Hotspot, join the Mac to it, run the script again, and use the hotspot at the event.
+Campus guest wifi was measured on 2026-11-06 and works: it is open (no password) and
+lets outbound `broker.emqx.io:1883` through. The script would stop and say so only if the
+network needed a login page or blocked that port.
 
 `python3 tools/setup.py --dry-run` shows the whole plan without touching anything.
 
 ### The manual way
 
 **1. Wire the reader** — see [docs/WIRING.md](docs/WIRING.md). Seven wires, RC522 runs
-on **3.3 V**, never 5 V.
+on **3.3 V**, never 5 V. It is the kit's own lesson 2.20 wiring: SS→D10, RST→D9.
 
 **2. Flash the pedestal**
 

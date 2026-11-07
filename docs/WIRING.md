@@ -34,14 +34,19 @@ both list "female pin headers"), and an RC522 has **male** pins once its header 
 soldered on. So the classic "female-to-female" advice you'll find online is for a
 Raspberry Pi or an UNO R3, both of which have male pins — it will not seat on an R4.
 
-Two practical consequences:
+Both ends of this are already in the kit: the ELEGOO EL-KIT-0025 ships the RC522 with
+its header fitted and 20 female-to-male Dupont wires, and lesson 2.20 asks for exactly
+those 7 leads. Nothing to solder and nothing to buy.
 
-- **The RC522 usually arrives with its 8-pin header loose in the bag.** You must solder
-  it on (short side down through the board, long side up) before any lead can attach.
-  Some sellers pre-solder it; check before you buy if you have no iron.
-- If you'd rather use a breadboard, female-to-male still works: socket onto the RC522
-  pin, pin end into a breadboard row, then a second male-to-male lead from that row to
-  the Arduino — that needs male-to-male leads too, so buying F-M is the simpler path.
+You only need seven of the eight RC522 pins — `IRQ` stays empty.
+
+### Voltage on the signal pins
+
+The RC522's VCC is 3.3 V, and the R4's digital pins are 5 V. Driving the RC522's SPI
+inputs from 5 V pins is outside the MFRC522's ratings, and it is what the kit's own
+lesson does — it works on practically every build. Leave it as drawn. **Only** if reads
+are unreliable after the gap is right, put a 4-channel level shifter (or a 1 kΩ/2 kΩ
+divider on MOSI, SCK and SS) between the board and the reader — never move VCC to 5 V.
 
 ## Power
 
@@ -61,9 +66,19 @@ tag on the globe's base. From the 3D model project:
 - the RC522's antenna coil and its MFRC522 chip are on the **same face**, so the PCB is
   the hard floor on that gap — you cannot mount it closer than its own thickness
 - hot-glue the board to the roof underside once the read works, not before
+- the printed stack: TopPlate is 3.5 mm, but only **0.6 mm of PLA** sits above the
+  antenna (2.5 mm dish + 0.4 mm tag pocket are cut away above it)
 
 Range is roughly "touching" for a 25–35 mm sticker through 2 mm of PLA. That is why the
 globe's base sits in a dish rather than hovering: alignment is the whole game.
+
+## Getting power and USB in
+
+The v9 BaseLid has a **26 × 10 × 14 mm notch at its front edge** — the USB-C cable leaves
+through that, and it is also where you reach the board. The body has no wall opening on
+purpose (any hole in the sloped wall fails the slicer's bridging check). So: build and
+flash with the lid off, tape the RC522 down, check the two-minute sitting test, then bond
+the lid with the cable already in the notch.
 
 ## If the reader is not detected
 

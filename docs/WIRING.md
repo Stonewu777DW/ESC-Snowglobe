@@ -56,6 +56,29 @@ divider on MOSI, SCK and SS) between the board and the reader — never move VCC
 - Powering the Arduino from USB is fine for the whole build. If you run it from a wall
   adapter, use the USB-C port; the onboard regulator feeds 3.3 V to the reader.
 
+## Which face has the antenna
+
+The coil is a flat printed loop on the **same face as the parts** — the face with the
+MFRC522 chip, the crystal, the silkscreen and the pins. There is no separate antenna
+board; the loop is copper on that top layer, and the bottom layer is bare under it.
+
+That means the flat, glueable side is the **bare** side, and it is the side that faces
+up. Glue bare-face-up: nothing protrudes, the plate stays flat, and the tag reads
+*through* 1.6 mm of FR4 plus the 0.6 mm roof — which is exactly the 2.2 mm the model
+budgeted for (`ANT_Z = PLATE_B - 1.6`).
+
+Before glue, tape it up and test both ways for two minutes with the sticker on the
+pedestal top:
+
+| Orientation | Protrusion | Gap to tag | Use when |
+|---|---|---|---|
+| bare side up, coil down (glue this) | none | 2.2 mm, reads through FR4 | it holds for 2 min — normally does |
+| coil up, parts down | chip/caps/pins bear on the plate | 0.6 mm | bare-side-up drops out |
+
+If only coil-up holds, do not grind the plate: either solder the header pins pointing
+**down** so the parts side is flat, or shim the plate with a 2 mm printed ring. Either
+way the wiring does not change.
+
 ## Mounting it in the pedestal
 
 The reader sits **under** the thin printed top, antenna face **up**, directly below the

@@ -7,7 +7,7 @@
 // --- Network ---------------------------------------------------------------
 // 2.4 GHz only. The UNO R4 WiFi has no 5 GHz radio; a 5 GHz-only network will
 // not connect no matter what the password is.
-#define WIFI_SSID     "<redacted>"
+#define WIFI_SSID     "USC Guest Wireless"
 #define WIFI_PASSWORD ""
 
 // Room code. MUST match the code shown on the computer page (it comes from the

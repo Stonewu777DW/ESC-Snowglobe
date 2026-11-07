@@ -96,11 +96,14 @@ uint32_t wifiStartedAt = 0;
 // An open network (a guest SSID with no password) must be joined with the
 // one-argument begin(), otherwise the board waits for a key that will never come.
 void joinWifi() {
+  // Measured on this board (2026-11-06): an OPEN network joins only via the
+  // one-argument begin(ssid). begin(ssid, "") sits at WL_IDLE forever and never
+  // associates, which is the failure this project spent hours chasing.
   if (strlen(WIFI_PASSWORD) == 0) {
-    logLine("[wifi] joining \"%s\" (open, no password)", WIFI_SSID);
+    logLine("[wifi] joining \"%s\" (open: single-arg begin)", WIFI_SSID);
     WiFi.begin(WIFI_SSID);
   } else {
-    logLine("[wifi] joining \"%s\"", WIFI_SSID);
+    logLine("[wifi] joining \"%s\" (passphrase)", WIFI_SSID);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   }
 }
@@ -248,7 +251,11 @@ void readerTick() {
         logLine("[tag] %s -> uid table -> %s", uid.c_str(), mapped);
         handleEvent(tracker.tagSeen(mapped, now));
       } else {
-        logLine("[tag] %s has no song payload, and is not in UID_SONGS (songs.h)", uid.c_str());
+        static String lastUnknown;
+        if (lastUnknown != uid) {
+          lastUnknown = uid;
+          logLine("[tag] %s has no song payload, and is not in UID_SONGS (songs.h)", uid.c_str());
+        }
       }
     }
     rfid.PICC_HaltA();

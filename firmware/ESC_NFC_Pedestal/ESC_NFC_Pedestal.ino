@@ -102,6 +102,7 @@ void joinWifi() {
 }
 
 bool networkUp() {
+  if (strlen(WIFI_SSID) == 0) return false;   // serial-only bench mode, no joining
   if (WiFi.status() == WL_CONNECTED) {
     if (!wifiLinked) {
       wifiLinked = true;
@@ -295,4 +296,15 @@ void setup() {
 void loop() {
   readerTick();
   networkTick();
+#if SERIAL_DEBUG
+  // Repeat the reader state so it is visible whenever the port is opened, not
+  // only in the 300 ms after a reset.
+  static uint32_t lastStatus = 0;
+  if (millis() - lastStatus >= 10000) {
+    lastStatus = millis();
+    byte v = rfid.PCD_ReadRegister(MFRC522::VersionReg);
+    if (v == 0x00 || v == 0xFF) Serial.println("[reader] NOT answering (0x00/0xFF)");
+    else Serial.print("[reader] ok, version 0x") , Serial.println(v, HEX);
+  }
+#endif
 }

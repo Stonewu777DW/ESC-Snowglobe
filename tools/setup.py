@@ -131,8 +131,16 @@ def find_port(wait_seconds=90):
 
 def ensure_libraries():
     if dry:
-        say("   would check MFRC522 and ArduinoMqttClient are installed")
+        say("   would check MFRC522, ArduinoMqttClient, and the ESCShared symlink")
         return
+    # ESCShared is ours, not a registry library: link it into the sketchbook so a
+    # plain compile/upload (no --libraries flag) can find it.
+    sketchbook = Path.home() / "Documents" / "Arduino" / "libraries"
+    link = sketchbook / "ESCShared"
+    if not link.exists():
+        sketchbook.mkdir(parents=True, exist_ok=True)
+        link.symlink_to(ROOT / "firmware" / "libraries" / "ESCShared")
+        say(f"   linked {link.name} into the sketchbook")
     listed = run(["arduino-cli", "lib", "list"]).stdout
     for lib in ("MFRC522", "ArduinoMqttClient"):
         if lib not in listed:
@@ -148,8 +156,7 @@ def flash(sketch, port):
     if built.returncode != 0:
         say(built.stdout[-1500:] + built.stderr[-1500:])
         die(f"{name.name} does not compile.")
-    uploaded = run(["arduino-cli", "upload", "-p", port, "--fqbn", FQBN,
-                    "--libraries", ROOT / "firmware" / "libraries", name])
+    uploaded = run(["arduino-cli", "upload", "-p", port, "--fqbn", FQBN, name])
     if uploaded.returncode != 0:
         say(uploaded.stdout[-1500:] + uploaded.stderr[-1500:])
         die(f"Could not upload {name.name}.",

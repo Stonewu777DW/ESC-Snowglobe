@@ -227,7 +227,7 @@ void readerTick() {
   lastPoll = now;
 
   bool sawTag = false;
-  if (escTagPresent(rfid)) {  // WUPA, not REQA: a tag resting here is HALTed between reads
+  if (escTagPresent(rfid)) {  // WUPA, not REQA: a resting tag is HALTed between reads
     char slug[SLUG_MAX] = {0};
     if (slugFromTag(slug, sizeof(slug))) {
       sawTag = true;

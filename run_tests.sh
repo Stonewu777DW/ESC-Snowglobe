@@ -8,6 +8,11 @@ g++ -std=c++17 -Wall -Wextra -Werror -o /tmp/esc_ndef_test tests/ndef_roundtrip.
 /tmp/esc_ndef_test | tail -1
 
 echo
+echo "== 4-byte page write path (C++)"
+g++ -std=c++17 -Wall -Wextra -Werror -o /tmp/esc_page_test tests/pagewrite_test.cpp
+/tmp/esc_page_test | tail -1
+
+echo
 echo "== pedestal timing rules (C++)"
 g++ -std=c++17 -Wall -Wextra -Werror -o /tmp/esc_presence_test tests/presence_test.cpp
 /tmp/esc_presence_test | tail -1

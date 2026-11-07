@@ -87,6 +87,16 @@ itself, or an open network gets a half-started association with an empty passwor
 - Tags: NTAG213/215/216 stickers. The MIFARE fobs/cards that ship with the module are
   Classic — usable only through `songs.h` UID mapping, never written as NDEF.
 
+## Hardware findings (measured on the real board, 2026-11-06)
+
+| Finding | Evidence |
+|---|---|
+| Reader answers over SPI; `VersionReg = 0x18` (clone chip, not 0x92) | serial `[reader] ok, version 0x18` |
+| **Block writes store only the first page**: must write 4 bytes at a time | hex `dump` before/after, see `docs/TAGS.md` |
+| WUPA + SELECT works for a resting tag; the pedestal read path needs no change | probe: 17 consecutive `WUPA: Success -> SELECT ok`, `[play] jingle-bells` |
+| The R4's WiFi joins open `USC Guest Wireless` (−58 dBm, `ENC_TYPE_NONE`) if left alone | probe finished `RESULT: CONNECTED` |
+| Thrashing `WiFi.end()` on a 5 s timer prevents association | pedestal never joined while the probe did |
+
 ## Open
 
 - Flash and confirm on real hardware: continuous read while the globe sits still,

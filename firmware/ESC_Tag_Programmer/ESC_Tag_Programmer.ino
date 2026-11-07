@@ -21,6 +21,7 @@
 #include <MFRC522.h>
 
 #include <ESCShared.h>
+#include "tagwrite.h"
 
 MFRC522 rfid(RC522_SS_PIN, RC522_RST_PIN);
 
@@ -98,6 +99,29 @@ void printCurrentPayload() {
   }
 }
 
+void dumpBuffer(const uint8_t *buf, uint8_t n) {
+  for (uint8_t i = 0; i < n; i++) {
+    if (buf[i] < 0x10) Serial.print('0');
+    Serial.print(buf[i], HEX);
+    Serial.print(i % 16 == 15 ? '\n' : ' ');
+  }
+  Serial.println();
+}
+
+void dumpPages() {
+  uint8_t data[WRITE_PAGES * 4];
+  if (!readPages(data, WRITE_PAGES)) return;
+  Serial.println("pages 4-19, hex:");
+  dumpBuffer(data, sizeof(data));
+  char text[64] = {0}, slug[SLUG_MAX] = {0};
+  if (ndefParseText(data, sizeof(data), text, sizeof(text))) {
+    Serial.print("text: \""); Serial.print(text); Serial.println("\"");
+    Serial.print("slug: "); Serial.println(ndefTextToSlug(text, slug, sizeof(slug)) ? slug : "(not ours)");
+  } else {
+    Serial.println("text: (no NDEF text record parsed)");
+  }
+}
+
 bool writeSlug(const char *slug) {
   uint8_t blob[64] = {0};
   size_t n = ndefBuildSlug(slug, blob, sizeof(blob));
@@ -105,16 +129,12 @@ bool writeSlug(const char *slug) {
     Serial.println("Bad slug. Lowercase letters, digits, hyphens; 24 characters max.");
     return false;
   }
-  for (uint8_t r = 0; r < WRITE_PAGES / 4; r++) {
-    uint8_t page = FIRST_PAGE + r * 4;
-    MFRC522::StatusCode st = rfid.MIFARE_Write(page, blob + r * 16, 16);
-    if (st != MFRC522::STATUS_OK) {
-      Serial.print("Write failed at page ");
-      Serial.print(page);
-      Serial.print(": ");
-      Serial.println(rfid.GetStatusCodeName(st));
-      return false;
-    }
+  // One page at a time: a 16-byte block write stores only its first page on this chip.
+  uint8_t failedPage = 0;
+  if (!escWritePages(rfid, FIRST_PAGE, blob, (uint16_t)n, &failedPage)) {
+    Serial.print("Write failed at page ");
+    Serial.println(failedPage);
+    return false;
   }
   // Prove it, do not assume it.
   uint8_t check[WRITE_PAGES * 4];
@@ -123,6 +143,10 @@ bool writeSlug(const char *slug) {
   if (!ndefParseText(check, sizeof(check), text, sizeof(text)) ||
       !ndefTextToSlug(text, got, sizeof(got)) || strcmp(got, slug) != 0) {
     Serial.println("Wrote the tag but the read-back does not match. Try again.");
+    Serial.print("expected "); Serial.print(n); Serial.println(" bytes:");
+    dumpBuffer(blob, n < 32 ? n : 32);
+    Serial.println("read back:");
+    dumpBuffer(check, 32);
     return false;
   }
   Serial.print("OK — tag now reads back as \"");
@@ -133,15 +157,13 @@ bool writeSlug(const char *slug) {
 }
 
 bool eraseTag() {
-  uint8_t blank[64] = {0};
+  uint8_t blank[WRITE_PAGES * 4] = {0};
   blank[0] = 0xFE;  // NDEF terminator: "this tag has no message"
-  for (uint8_t r = 0; r < WRITE_PAGES / 4; r++) {
-    MFRC522::StatusCode st = rfid.MIFARE_Write(FIRST_PAGE + r * 4, blank + r * 16, 16);
-    if (st != MFRC522::STATUS_OK) {
-      Serial.print("Erase failed: ");
-      Serial.println(rfid.GetStatusCodeName(st));
-      return false;
-    }
+  uint8_t failedPage = 0;
+  if (!escWritePages(rfid, FIRST_PAGE, blank, sizeof(blank), &failedPage)) {
+    Serial.print("Erase failed at page ");
+    Serial.println(failedPage);
+    return false;
   }
   Serial.println("Erased. The tag still has its UID, so it can still be used from songs.h.");
   return true;
@@ -152,6 +174,7 @@ void help() {
   Serial.println("Commands:");
   Serial.println("  scan            identify the tag and show its payload");
   Serial.println("  write <slug>    write a song payload");
+  Serial.println("  dump            hex dump the first 64 bytes of a tag");
   Serial.println("  erase           remove the payload");
   Serial.println();
   Serial.print("Songs on the computer page, in order:");
@@ -194,6 +217,11 @@ void loop() {
     if (waitForTag()) {
       printUid();
       printCurrentPayload();
+      rfid.PICC_HaltA();
+    }
+  } else if (line.equalsIgnoreCase("dump")) {
+    if (waitForTag()) {
+      dumpPages();
       rfid.PICC_HaltA();
     }
   } else if (line.equalsIgnoreCase("erase")) {

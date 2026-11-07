@@ -81,6 +81,26 @@ static const UidSong UID_SONGS[] = {
 
 The NDEF payload is checked first every time, so a properly programmed tag always wins.
 
+## Writing works one 4-byte page at a time (measured, not assumed)
+
+`MFRC522::MIFARE_Write()` sends 16 bytes in one command, which is the documented
+Ultralight block write. **On the module in this kit it stores only the first page of each
+block.** A 26-byte NDEF blob came back as:
+
+```
+expected: 03 17 D1 01 13 54 02 65 6E 65 73 63 3A 6A 69 6E
+on tag  : 03 17 D1 01 00 00 00 00 00 00 00 00 00 00 00 00
+```
+
+Four good bytes per sixteen — which is why the writer reports "wrote but read-back does
+not match" instead of pretending to succeed. The fix is `escWritePages()` in
+`firmware/libraries/ESCShared/src/tagwrite.h`: one `MIFARE_Ultralight_Write()` per page,
+4 ms apart, verified by reading the whole blob back. `tests/pagewrite_test.cpp` pins the
+splitting.
+
+If a future sticker will not take a page write, `dump` prints the raw 64 bytes and the
+parse result — that answers "is the tag bad or is the code bad" in one command.
+
 ## Verifying a tag with a phone
 
 iPhone: Control Centre → NFC Tag Reader (iOS 14+), tap the sticker to the top of the

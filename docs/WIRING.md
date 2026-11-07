@@ -20,6 +20,29 @@ define it in the sketch's `config.h` and change it there too.
 Optional piezo/buzzer for a short confirmation beep: **D6 → buzzer +**, **buzzer − → GND**,
 then set `ENABLE_BUZZER 1` in `config.h`. D6 is free; D9–D13 are taken by the reader.
 
+## What kind of jumper leads
+
+**Female-to-male**, seven of them — one socket end and one pin end.
+
+| End | Goes into |
+|---|---|
+| female socket | the **male** pin on the RC522 |
+| male pin | the **female** header hole on the UNO R4 WiFi |
+
+The R4 ships with **female** headers (Tom's Hardware and Arduino's own R4 sales brief
+both list "female pin headers"), and an RC522 has **male** pins once its header is
+soldered on. So the classic "female-to-female" advice you'll find online is for a
+Raspberry Pi or an UNO R3, both of which have male pins — it will not seat on an R4.
+
+Two practical consequences:
+
+- **The RC522 usually arrives with its 8-pin header loose in the bag.** You must solder
+  it on (short side down through the board, long side up) before any lead can attach.
+  Some sellers pre-solder it; check before you buy if you have no iron.
+- If you'd rather use a breadboard, female-to-male still works: socket onto the RC522
+  pin, pin end into a breadboard row, then a second male-to-male lead from that row to
+  the Arduino — that needs male-to-male leads too, so buying F-M is the simpler path.
+
 ## Power
 
 - The RC522 draws about 26 mA at 3.3 V. The R4's 3.3 V pin supplies it.

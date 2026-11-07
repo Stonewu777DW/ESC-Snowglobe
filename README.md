@@ -33,7 +33,8 @@ and the software.
 
 - Arduino UNO R4 WiFi (the ELEGOO UNO R4 WiFi kit has everything below)
 - RC522 RFID module — 13.56 MHz, the one in the kit's lesson 2.20
-- 7 female-to-female jumpers
+- 7 **female-to-male** jumpers (socket end on the RC522's pins, pin end into the
+  Arduino's female headers)
 - NFC stickers: **NTAG213, NTAG215 or NTAG216** (13.56 MHz, MIFARE Ultralight family).
   NTAG213 is plenty for one short string.
 - The printed pedestal, and one tag per globe

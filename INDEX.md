@@ -71,6 +71,13 @@ publish+subscribe. So this network works for the project as-is.
 **Only fail-fast case:** a network that needs a login page, or one that blocks port 1883.
 The script detects either and points at a phone hotspot.
 
+## Harness facts (checked against vendor docs, not assumed)
+
+- The UNO R4 WiFi has **female** headers (Arduino R4 sales brief: "female pin headers").
+- An RC522 has **male** pins, and its 8-pin header ships loose and needs soldering.
+- Therefore the leads are **female-to-male**, not the female-to-female that Pi/R3 guides
+  recommend. See `docs/WIRING.md`.
+
 ## Open
 
 - Flash and confirm on real hardware: continuous read while the globe sits still,

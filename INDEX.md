@@ -54,7 +54,7 @@ python3 -m http.server 8000 --directory dist
 ```
 
 The complete test command covers four native executables, 38 JS/DOM/build tests,
-four Python bootstrap tests, legacy setup dry run and three board builds. Install
+five Python bootstrap/dry-run tests, legacy setup dry run and three board builds. Install
 the Arduino dependencies from README first. Tests do not flash hardware.
 Optional headless integration uses a repository-root server; see DEVELOPMENT.
 Never upload the repository root as a website; deploy only dist/.

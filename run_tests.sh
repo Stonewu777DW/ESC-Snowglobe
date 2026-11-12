@@ -23,8 +23,8 @@ done
 [[ "$out" == *'would run: arduino-cli upload'* ]] || { printf 'MISSING upload step\n'; exit 1; }
 [[ "$out" == *'would save both to config.h'* ]] || { printf 'MISSING wifi save step\n'; exit 1; }
 printf 'PASS — 4 stickers, uploads, and the WiFi save are planned\n'
-printf '\n== Pages project bootstrap (offline unit tests)\n'
-python3 -m unittest discover -s tests -p test_pages_project.py
+printf '\n== Python bootstrap and platform-independent dry-run tests\n'
+python3 -m unittest discover -s tests -p 'test_*.py'
 printf '\n== firmware compiles for the UNO R4 WiFi\n'
 for mode in wifi ble programmer; do
   sketch=ESC_NFC_Pedestal

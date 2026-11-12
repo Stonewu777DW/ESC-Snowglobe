@@ -7,7 +7,7 @@ through pull requests. Anonymous direct writes to main are not enabled.
 
 The owner has invited Stone (`Stonewu777DW`) with **write** access to this repo;
 Stone must accept the GitHub invitation before pushing. Every collaborator with
-write access can push to `main`. Once the pipeline is published and Cloudflare
+write access can push to `main`. Once Cloudflare
 credentials are configured, any such push or merged PR runs tests and automatically
 updates the same main site—no separate deployment approval or personal Cloudflare
 account is required. Failed tests prevent deployment. Changes only on a contributor's

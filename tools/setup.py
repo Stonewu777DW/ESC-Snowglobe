@@ -297,12 +297,12 @@ def main():
     say(f"   found it on {port}")
 
     step(2, 5, "WiFi (read from this Mac, not typed)")
-    ssid = detect_ssid()
+    ssid = "DRYRUN-NETWORK" if dry else detect_ssid()
     if not ssid:
         die("This Mac is not on WiFi.",
             "Join a WiFi network first — your phone's Personal Hotspot is the reliable "
             "choice — then run this again.")
-    password = detect_password(ssid)
+    password = "" if dry else detect_password(ssid)
     say(f"   network:  {ssid}")
     say("   password: " + ("open network, none needed" if not password
                            else f"found in Keychain ({len(password)} characters)"))

@@ -69,10 +69,11 @@ int main() {
 
   // 4. Junk / blank tags are rejected instead of producing a bogus song.
   {
+    char output[64] = {0};
     std::vector<uint8_t> blank(64, 0x00);
-    check(!ndefParseText(blank.data(), blank.size(), (char[64]){0}, 64), "blank tag rejected");
+    check(!ndefParseText(blank.data(), blank.size(), output, sizeof(output)), "blank tag rejected");
     std::vector<uint8_t> random = {0xE1, 0x10, 0x12, 0x00, 0x01, 0x03, 0xA0, 0x0C};
-    check(!ndefParseText(random.data(), random.size(), (char[64]){0}, 64), "manufacturer-only tag rejected");
+    check(!ndefParseText(random.data(), random.size(), output, sizeof(output)), "manufacturer-only tag rejected");
   }
 
   // 5. A phone-written NDEF text record (whatever the phone app puts there) is not mistaken for ours.

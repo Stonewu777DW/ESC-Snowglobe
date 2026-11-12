@@ -1,105 +1,87 @@
-# INDEX — ESC Snowglobe (NFC pedestal)
+# ESC Snowglobe — project index / agent handoff
 
-**Status:** v2.0.0, NFC rebuild of the camera version. Software verified on 2026-11-06;
-**not yet run on hardware** (no Arduino was on USB during the rebuild). Read this file
-before exploring the tree.
+## Product and source
 
-## What this repo is
+Selected: battery-powered **BLE** pedestal + minimal static website. Arduino reads
+the globe; the computer plays audio through its OS-selected output. No Wi-Fi,
+room code or USB during normal use. Speaker pairing belongs to the computer.
 
-The game computer page (`index.html`) plays an mp3 when an NFC tag is placed on a
-pedestal. The pedestal is an Arduino UNO R4 WiFi + RC522 that publishes the song slug
-over MQTT. The old phone/camera/AprilTag path is gone — do not reintroduce it.
+- Public fork: https://github.com/sidatpho/ESC-Snowglobe
+- Original: https://github.com/Stonewu777DW/ESC-Snowglobe
+- Owner authorized the fork after upstream returned push:false and HTTP 403.
+- Local origin remains upstream; personal remote is the owner fork.
+- Target host: Cloudflare Pages, project esc-snowglobe.
+- **Hosting blocked:** saved Cloudflare token reports expired. No live URL yet.
+- CI/auto-deploy definition: .github/workflows/ci.yml. Deploy is disabled until
+  credential secrets and CLOUDFLARE_DEPLOY_ENABLED are configured/verified.
 
-## Verified facts
+## Read next
 
-| Thing | Value | How it was checked |
-|---|---|---|
-| Sketches compile for `arduino:renesas_uno:unor4wifi` | pedestal 28% flash / 25% RAM, programmer 24% / 21% | `arduino-cli compile --libraries firmware/libraries` |
-| NFC payload round-trip | 15/15 assertions pass | `tests/ndef_roundtrip.cpp` |
-| Start/stop timing rules | 10/10 scenarios pass | `tests/presence_test.cpp` (fake clock) |
-| Page logic + real DOM | 16/16 pass | `tests/player.test.mjs`, `tests/page.test.mjs` (jsdom) |
-| Broker topics/payloads | round-trip on `broker.emqx.io:1883` | live pub/sub check |
-| Tag → antenna gap (physical) | 2.2 mm | `~/Developer/EscapeSC-NFC-Pedestal` model |
+README.md: use, setup and code map.
+docs/ARCHITECTURE.md: protocol, playback, security and hardware contracts.
+docs/DEVELOPMENT.md: tests and isolated browser verification.
+docs/DEPLOYMENT.md: deployment credentials, pipeline and recovery.
+docs/WIRELESS-PEDESTAL.md: BLE firmware install, power and enclosure.
+docs/WIRING.md + docs/TAGS.md: physical wiring and NFC tag programming.
+CONTRIBUTING.md + LICENSE-NOTICE.md + songs/README.md: collaboration/attribution.
+
+Existing .hermes.md remains; its numeric test count predates later additions.
+Current commands/state here supersede historical status paragraphs. Do not use
+Computer Use or operate the user's desktop for this project. Use source edits
+and isolated headless tests. Do not change other Hermes profiles or user systems.
+
+## Files that matter
+
+- wireless.html + wireless.css: circular Connect, song/progress, volume/live stats.
+- instructions.html: separate setup page.
+- ble.js: filtered picker, full snapshot reads, polling and generation guards.
+- player.js: DOM-free state machine, shared with legacy page.
+- firmware/ESC_NFC_Pedestal: build with -DESC_BLE_MODE=1 for this product.
+- firmware/ESC_Tag_Programmer + firmware/libraries/ESCShared: tags and codecs.
+- hardware/pedestal-v9: editable model/generator, four STLs, reference, provenance.
+- tools/build_site.py: whitelisted dist export; BLE page becomes index.html.
+- tools/test_browser.py: headless real-page/media test with simulated GATT.
+- tools/ensure_pages_project.py: narrowly scoped bootstrap, offline unit-tested.
+- index.html / tools/setup.py / lib/: legacy Wi-Fi/MQTT, not the deployed homepage.
 
 ## Commands
 
-```bash
-./run_tests.sh                       # everything above except the broker check
-npm install                          # once, for jsdom
-arduino-cli compile --fqbn arduino:renesas_uno:unor4wifi --libraries firmware/libraries firmware/ESC_NFC_Pedestal
-python3 -m http.server 8000          # page: http://localhost:8000/?room=<ROOM_CODE>
+```sh
+npm ci
+npm test
+npm run build
+python3 -m http.server 8000 --directory dist
 ```
 
-## Layout
+The complete test command covers four native executables, 38 JS/DOM/build tests,
+four Python bootstrap tests, legacy setup dry run and three board builds. Install
+the Arduino dependencies from README first. Tests do not flash hardware.
+Optional headless integration uses a repository-root server; see DEVELOPMENT.
+Never upload the repository root as a website; deploy only dist/.
 
-```
-index.html            computer page (SONGS table lives here)
-player.js             page logic, no DOM, unit-tested
-songs/                mp3 files (names are referenced by index.html)
-firmware/ESC_NFC_Pedestal/    config.h (WiFi, room, pins, timing), songs.h (UID fallback)
-firmware/ESC_Tag_Programmer/  writes "esc:<slug>" onto NTAG stickers over serial
-firmware/libraries/ESCShared/ ndef.h, presence.h, tagdetect.h, pins.h
-tests/                C++ and node tests
-docs/                 WIRING.md, TAGS.md
-```
+## Real hardware evidence versus software fixtures
 
-## Contracts (breaking these breaks the product)
+BLE firmware was uploaded; serial reported reader version 0x18. Battery-powered
+E069 completed a 90-second GATT capture: no tag → rudolph → no tag, without a
+connection error. The browser connected too. This proves delivery/removal, not
+that a person heard music. Headless tests use simulated GATT and real MP3 decode.
 
-1. A slug is `[a-z0-9-]{1,24}`. It appears in `index.html` → `SONGS`, on the tag as
-   `esc:<slug>`, and optionally in `songs.h`.
-2. `ROOM_CODE` in `config.h` must equal the page's `?room=` value.
-3. Topics: `esc-snowglobe/<room>/tag` and `esc-snowglobe/<room>/reader`.
-4. Presence is detected with **WUPA** (`escTagPresent()`), never
-   `PICC_IsNewCardPresent()` — a tag resting on the reader is HALTed and REQA will not
-   wake it. See `firmware/libraries/ESCShared/src/tagdetect.h`.
-5. The RC522 is 3.3 V only.
+A browser read-event feedback loop was reproduced/fixed: readValue can emit
+characteristicvaluechanged. Ignore hints during an in-flight read; polling catches
+missed updates. The final fix still needs actual-radio reconnect verification.
 
-## Setup is automatic
+## Remaining acceptance
 
-`tools/setup.py` reads the current Wi-Fi SSID (`ipconfig getsummary en0`), pulls the
-password from Keychain (empty for open networks), writes both to `config.h`, flashes,
-then verifies from the serial log that the board reached the broker before touching the
-tags. It never asks for the network name.
+1. Audible selected-speaker playback with final UI and real BLE after reconnect.
+2. Closed-enclosure sustained playback, swaps/reconnect, practical battery runtime.
+3. Renew Cloudflare credential; configure account/project/secrets, enable deploy;
+   verify a real deployment and served commit/assets before declaring it live.
+4. Preserve attribution. Public visibility is not a license to third-party recordings.
 
-Open networks (empty password) are joined with the one-argument `WiFi.begin(ssid)` —
-passing an empty password string makes the R4 wait for a key that never comes.
+Safety/contracts: RC522 is 3.3 V only. Presence uses WUPA, not REQA-only logic.
+Tags are on globes; reader is under the top plate. Top plate is seated, not latched:
+support/secure it when inverting; secure the battery/board/wires.
 
-Measured on USC guest wifi (open, no portal), 2026-11-06: outbound `broker.emqx.io:1883`
-(MQTT, the board's path) and `:8084` wss (the browser's path) both connect and carry
-publish+subscribe. So this network works for the project as-is.
-
-**Only fail-fast case:** a network that needs a login page, or one that blocks port 1883.
-The script detects either and points at a phone hotspot.
-
-The join is owned entirely by `networkUp()` — `setup()` must not call `WiFi.begin()`
-itself, or an open network gets a half-started association with an empty password.
-
-## Harness facts (from this owner's kit, not from generic tutorials)
-
-- Board: **Arduino UNO R4 WiFi**, USB descriptor `UNO WiFi R4 CMSIS-DAP` (from
-  `~/Developer/Arduino/HANDOFF.md`).
-- Kit: **ELEGOO UNO R4 WiFi Super Starter Kit EL-KIT-0025** — contains the RC522 module
-  (its lesson 2.20 uses SS **D10**, RST **D9**) and 20 female-to-male Dupont wires.
-  Kit modules ship with headers fitted; nothing to solder.
-- The R4 has **female** headers, the RC522 has **male** pins → the leads are
-  **female-to-male**. Female-to-female (what most RC522 tutorials say) needs an R3 or a
-  Pi, both male-pinned. See `docs/WIRING.md`.
-- Tags: NTAG213/215/216 stickers. The MIFARE fobs/cards that ship with the module are
-  Classic — usable only through `songs.h` UID mapping, never written as NDEF.
-
-## Hardware findings (measured on the real board, 2026-11-06)
-
-| Finding | Evidence |
-|---|---|
-| Reader answers over SPI; `VersionReg = 0x18` (clone chip, not 0x92) | serial `[reader] ok, version 0x18` |
-| **Block writes store only the first page**: must write 4 bytes at a time | hex `dump` before/after, see `docs/TAGS.md` |
-| WUPA + SELECT works for a resting tag; the pedestal read path needs no change | probe: 17 consecutive `WUPA: Success -> SELECT ok`, `[play] jingle-bells` |
-| **An open network joins ONLY via single-arg `WiFi.begin(ssid)`** | `begin(ssid,"")` sat at `status 0` for 60 s; `begin(ssid)` reached `status 3, ip 10.25.191.152` |
-| `WiFi.end()` in the retry loop prevented association | pedestal never joined while a one-shot probe did |
-| ESP32-S3 firmware rewrites from this Mac via esptool; Arduino's tool fails on the port switch | `write-flash 0x0` 1,966,080 B, hash verified, scan still returns 10 networks |
-| Full chain verified | broker received `{"reader":"E068","fw":"1.0.0","state":"online"}` every 2 s |
-
-## Open
-
-- Flash and confirm on real hardware: continuous read while the globe sits still,
-  MQTT reconnection after WiFi drop, and the 2.2 mm gap in the printed pedestal.
+Historical reader/network findings: docs/HARDWARE-HISTORY.md. Earlier audio repair
+and the Sinatra 28.30-second trim: docs/PLAYBACK-INVESTIGATION.md. Wi-Fi setup is
+retained in docs/LEGACY-WIFI.md, not a teammate prerequisite.

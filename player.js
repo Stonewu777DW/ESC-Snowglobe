@@ -16,6 +16,7 @@
     const now = opts.now || (() => Date.now());
     const hooks = opts.hooks || {};
 
+    let manual = false;
     let current = null;        // slug of the song playing, or null
     let owner = null;          // reader that started it
     let lastHeard = 0;         // last tag message from that reader
@@ -45,6 +46,7 @@
       if (current === null) return false;
       const was = current;
       current = null;
+      manual = false;
       if (hooks.onStop) hooks.onStop(was, reason || 'none');
       return true;
     }
@@ -76,6 +78,7 @@
         return;
       }
       if (!msg.song) return;
+      manual = false;
       owner = msg.reader || owner;
       lastHeard = now();
       play(msg.song);
@@ -84,7 +87,7 @@
     // Call on a timer; returns nothing, fires hooks when the reader goes quiet.
     function tick() {
       const t = now();
-      if (current !== null && t - lastHeard > timeoutMs) {
+      if (current !== null && !manual && t - lastHeard > timeoutMs) {
         owner = null;
         stop('lost the reader');
       }
@@ -99,7 +102,10 @@
       readerOnline: () => readerId !== null && now() - lastReaderSeen <= timeoutMs,
       readerId: () => readerId,
       // Manual trigger, for testing the speakers before the hardware is on the table.
-      playManually: (slug) => play(slug),
+      playManually: (slug) => {
+        if (songFor(slug)) { manual = true; owner = null; }
+        return play(slug);
+      },
       stopManually: () => stop('manual'),
     };
   }

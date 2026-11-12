@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#123d32">
+<title>Snowglobe</title>
+<link rel="stylesheet" href="wireless.css">
+</head>
+<body>
+<header class="masthead"><a class="brand" href="wireless.html"><span class="star" aria-hidden="true">✳</span> ESC / SNOWGLOBE</a><a href="instructions.html">How it works</a></header>
+<main class="console">
+<section class="connect-panel" aria-label="Pedestal connection">
+ <div class="ornament"><span class="cap" aria-hidden="true"></span><button id="connect" class="connect-circle">Connect</button><button id="disconnect" class="connect-circle" hidden aria-label="Disconnect pedestal">Disconnect</button></div>
+ <p id="connection" class="connection">Not connected</p>
+ <p id="status" class="status" role="status" aria-live="polite">Connect your pedestal to begin.</p>
+ <button id="sound" class="text-button" hidden>Enable sound</button>
+</section>
+<section class="player" aria-label="Live playback">
+ <div class="eyebrow"><span class="live-dot" aria-hidden="true"></span> NOW PLAYING</div>
+ <h1 id="nowPlaying">Waiting for a globe</h1>
+ <div class="timeline"><span id="elapsed">0:00</span><progress id="progress" value="0" max="1" aria-label="Song progress"></progress><span id="duration">—:—</span></div>
+ <dl class="telemetry">
+  <div><dt>Playback</dt><dd id="playbackState">Idle</dd></div>
+  <div><dt>Connection</dt><dd id="transport">Offline</dd></div>
+  <div><dt>NFC reader</dt><dd id="readerState">—</dd></div>
+  <div><dt>Audio output</dt><dd>Computer’s selected speaker</dd></div>
+ </dl>
+ <div class="volume-row"><label for="volume">Volume</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.8" aria-label="Playback volume"><output id="volumeValue" for="volume">80%</output></div>
+ <div class="utilities"><button id="test" class="text-button">Test speaker</button><button id="stop" class="text-button" hidden>Stop test</button></div>
+</section>
+</main>
+<footer class="page-footer"><span class="holly" aria-hidden="true">●</span> A little Christmas, on cue.</footer>
+<script src="player.js"></script><script src="ble.js"></script>
+<script>
+const SONGS = [
+  {slug:'jingle-bells',title:'Jingle Bells',file:'songs/Jingle Bells - Sinatra (Intro Trimmed).mp3'},
+  {slug:'frosty',title:'Frosty the Snowman',file:'songs/Frosty the Snowman (with lyrics).mp3'},
+  {slug:'rudolph',title:'Rudolph the Red-Nosed Reindeer',file:'songs/Gene Autry - Rudolph the Red-Nosed Reindeer (Audio) 4.mp3'},
+  {slug:'white-christmas',title:'White Christmas',file:'songs/White Christmas (Official Video) 4.mp3'},
+];
+const $ = (id) => document.getElementById(id);
+const audio = new Audio();
+audio.preload = 'auto'; audio.volume = Number($('volume').value);
+let audioGeneration = 0, connected = false, healthy = false;
+function playback(text) { $('playbackState').textContent = text; document.body.dataset.playing = String(text === 'Playing'); }
+function clock(seconds) { if (!Number.isFinite(seconds) || seconds < 0) return '—:—'; return Math.floor(seconds / 60) + ':' + String(Math.floor(seconds % 60)).padStart(2, '0'); }
+function updateTime() {
+  $('elapsed').textContent = clock(audio.currentTime || 0);
+  $('duration').textContent = clock(audio.duration);
+  $('progress').value = Number.isFinite(audio.duration) && audio.duration > 0 ? Math.min(1, (audio.currentTime || 0) / audio.duration) : 0;
+}
+function status(text, error = false) { $('status').textContent = text; $('status').classList.toggle('error', error); }
+function halt() { ++audioGeneration; audio.pause(); audio.currentTime = 0; playback('Idle'); updateTime(); $('stop').hidden = true; }
+const player = EscPlayer.createPlayer({ songs: SONGS, timeoutMs: 3500, hooks: {
+  onPlay(song) {
+    const mine = ++audioGeneration;
+    audio.pause(); audio.src = song.file; audio.volume = Number($('volume').value);
+    $('nowPlaying').textContent = song.title; playback('Playing'); $('stop').hidden = connected;
+    status(connected ? 'Lift the globe to stop.' : 'Speaker test — click Stop test when finished.');
+    audio.play().catch(() => { if (mine === audioGeneration) {
+      $('sound').hidden = false; playback('Sound blocked'); status('Click Enable sound to allow playback.', true);
+    } });
+  },
+  onStop(slug, reason) {
+    halt(); $('nowPlaying').textContent = 'Waiting for a globe';
+    status(reason === 'lost the reader' ? 'Pedestal stopped responding. Check the battery and reconnect.' : 'Place a globe on the pedestal.');
+  },
+  onUnknown(slug) { halt(); status('This globe’s song is not in this player: ' + slug, true); },
+  onReader(id, online) {
+    if (connected && !online) { connection.disconnect(); status('Pedestal stopped responding. Check the battery and reconnect.', true); }
+  },
+} });
+const connection = EscBle.createConnection({
+  onSnapshot(snapshot) {
+    healthy = snapshot.healthy; $('readerState').textContent = snapshot.reader + (healthy ? ' · Ready' : ' · Check wiring');
+    if (!healthy) {
+      player.stopManually(); halt(); $('connection').textContent = 'NFC reader needs attention';
+      status('NFC reader not responding. Check the reader wiring before use.', true); return;
+    }
+    $('connection').textContent = 'Pedestal ready · ' + snapshot.reader;
+    player.onReaderStatus({ reader: snapshot.reader, state: 'online' });
+    player.onTagMessage(snapshot);
+  },
+  onState(state, detail) {
+    connected = state === 'connected';
+    $('transport').textContent = connected ? 'Bluetooth LE' : state === 'connecting' ? 'Connecting…' : 'Offline';
+    if (!connected && state !== 'connecting') $('readerState').textContent = '—';
+    $('connect').disabled = state === 'connecting';
+    $('connect').textContent = state === 'connecting' ? 'Connecting…' : 'Connect';
+    $('connect').hidden = connected; $('disconnect').hidden = !connected;
+    if (state === 'connected') {
+      if (healthy) { $('connection').textContent = detail + ' · ready'; status(player.currentSong() ? 'Lift the globe to stop.' : 'Place a globe on the pedestal.'); }
+    } else if (state === 'connecting') { status('Choose ESC Pedestal in the browser’s device picker…'); }
+    else {
+      player.stopManually(); halt(); $('connection').textContent = 'Not connected';
+      status(state === 'cancelled' ? 'Nothing selected. Click Connect pedestal when ready.'
+        : state === 'error' ? 'Could not connect: ' + detail : 'Pedestal disconnected. Check its battery, then click Connect pedestal.', state === 'error');
+    }
+  },
+});
+function unlockSound() {
+  const mine = ++audioGeneration;
+  audio.src = SONGS[0].file; audio.volume = 0;
+  audio.play().then(() => {
+    if (mine !== audioGeneration) return;
+    audio.pause(); audio.currentTime = 0; audio.volume = Number($('volume').value);
+  }, () => { if (mine === audioGeneration) $('sound').hidden = false; });
+}
+$('connect').addEventListener('click', () => { unlockSound(); void connection.connect(); });
+$('disconnect').addEventListener('click', () => connection.disconnect());
+$('test').addEventListener('click', () => {
+  player.playManually('jingle-bells'); $('stop').hidden = false;
+  status('Speaker test — click Stop test when finished.');
+});
+$('stop').addEventListener('click', () => player.stopManually());
+$('sound').addEventListener('click', () => {
+  audio.play().then(() => { $('sound').hidden = true; playback('Playing'); }, () => status('Audio could not play. Check the selected speaker and reload.', true));
+});
+$('volume').addEventListener('input', () => { audio.volume = Number($('volume').value); $('volumeValue').textContent = Math.round(audio.volume * 100) + '%'; });
+audio.addEventListener?.('error', () => { playback('Load error'); status('The song could not load. Check your internet connection and reload.', true); });
+audio.addEventListener?.('playing', () => { if (player.currentSong()) playback('Playing'); });
+audio.addEventListener?.('waiting', () => { if (player.currentSong()) playback('Buffering'); });
+audio.addEventListener?.('ended', () => playback('Finished'));
+audio.addEventListener?.('timeupdate', updateTime);
+audio.addEventListener?.('loadedmetadata', updateTime);
+if (!isSecureContext || !navigator.bluetooth) {
+  $('connect').disabled = true;
+  status('Open this HTTPS website in desktop Chrome or Edge on macOS or Windows. Safari and Firefox cannot connect to the pedestal.', true);
+}
+setInterval(() => { player.tick(); updateTime(); }, 250);
+</script>
+</body></html>

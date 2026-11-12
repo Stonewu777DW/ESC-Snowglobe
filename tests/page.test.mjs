@@ -11,7 +11,7 @@ const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 // the page runs exactly as it does in a browser (mqtt.js is stubbed anyway).
 const playerSrc = readFileSync(new URL('../player.js', import.meta.url), 'utf8');
 
-function boot(t) {
+function boot(t, options = {}) {
   const published = [];
   const listeners = {};
   const client = {
@@ -21,6 +21,8 @@ function boot(t) {
     emit: (evt, ...args) => (listeners[evt] || []).forEach((fn) => fn(...args)),
   };
   const played = [];
+  const frames = [];
+  const audios = [];
 
   const dom = new JSDOM(html, {
     url: 'http://localhost/index.html?room=esc-snowglobe-test',
@@ -30,10 +32,15 @@ function boot(t) {
       window.mqtt = { connect: () => client };
       window.eval(playerSrc);
       // jsdom has no media stack; record what the page asked to play.
+      window.requestAnimationFrame = (fn) => { frames.push(fn); return frames.length; };
       window.Audio = class {
-        constructor() { this.volume = 1; this.currentTime = 0; }
-        play() { played.push(this.src); return Promise.resolve(); }
-        pause() {}
+        constructor() { this.volume = 1; this.currentTime = 0; this.paused = true; audios.push(this); }
+        play() {
+          this.paused = false;
+          played.push(this.src);
+          return options.play ? options.play(this) : Promise.resolve();
+        }
+        pause() { this.paused = true; }
       };
     },
   });
@@ -41,8 +48,47 @@ function boot(t) {
   const { window } = dom;
   // The page runs timers and rAF; close the window so node can exit.
   if (t) t.after(() => window.close());
-  return { window, client, published, played, dom };
+  return { window, client, published, played, dom, audio: audios[0], frames };
 }
+
+test('a completed old stop fade cannot pause a newly scanned globe', (t) => {
+  const { client, window, audio, frames } = boot(t);
+  const topic = 'esc-snowglobe/esc-snowglobe-test/tag';
+  const send = (msg) => client.emit('message', topic, Buffer.from(JSON.stringify({ reader: 'AB12', ...msg })));
+  send({ song: 'rudolph', present: true });
+  send({ song: null, present: false });
+  send({ song: 'frosty', present: true });
+  while (frames.length) frames.shift()(window.performance.now() + 1000);
+  assert.equal(audio.paused, false, 'old removal callback must not pause the new song');
+  assert.equal(audio.volume, 1);
+  assert.equal(text(window, 'nowPlaying'), 'Frosty the Snowman');
+});
+
+test('a fade clamps an animation timestamp older than its start time', (t) => {
+  const { client, window, audio, frames } = boot(t);
+  client.emit('message', 'esc-snowglobe/esc-snowglobe-test/tag',
+    Buffer.from('{"reader":"AB12","song":"frosty","present":true}'));
+  client.emit('message', 'esc-snowglobe/esc-snowglobe-test/tag',
+    Buffer.from('{"reader":"AB12","song":null,"present":false}'));
+  frames.shift()(0);
+  assert.ok(audio.volume >= 0 && audio.volume <= 1, 'volume must stay inside the browser media range');
+  while (frames.length) frames.shift()(window.performance.now() + 1000);
+  assert.equal(audio.paused, true);
+});
+
+test('sound-unlock completion cannot pause a scan that arrived while audio was loading', async (t) => {
+  let resolveUnlock;
+  let calls = 0;
+  const { client, window, audio } = boot(t, { play: () => ++calls === 1
+    ? new Promise((resolve) => { resolveUnlock = resolve; }) : Promise.resolve() });
+  window.document.getElementById('sound').click();
+  client.emit('message', 'esc-snowglobe/esc-snowglobe-test/tag',
+    Buffer.from('{"reader":"AB12","song":"frosty","present":true}'));
+  resolveUnlock();
+  await Promise.resolve();
+  assert.equal(audio.paused, false, 'unlock callback must not pause a real song');
+  assert.match(audio.src, /Frosty/);
+});
 
 const text = (window, id) => window.document.getElementById(id).textContent;
 const value = (window, id) => window.document.getElementById(id).value;

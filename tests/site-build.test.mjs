@@ -1,0 +1,21 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+const root = fileURLToPath(new URL('../', import.meta.url));
+test('public site build includes the player, guide and exactly four selected songs, not repo internals', () => {
+  execFileSync('python3', ['tools/build_site.py'], { cwd: root });
+  const out = new URL('../dist/', import.meta.url);
+  const read = name => readFileSync(new URL(name, out), 'utf8');
+  assert.equal(read('index.html'), read('wireless.html'));
+  for (const name of ['instructions.html', 'wireless.css', 'player.js', 'ble.js', '_headers', 'build-info.json']) assert.ok(existsSync(new URL(name, out)), name);
+  assert.match(read('index.html'), /instructions.html/);
+  assert.match(read('instructions.html'), /github.com\/sidatpho\/ESC-Snowglobe/);
+  const files = readdirSync(out).sort();
+  assert.deepEqual(files, ['_headers','ble.js','build-info.json','index.html','instructions.html','player.js','songs','wireless.css','wireless.html'].sort());
+  assert.equal(readdirSync(new URL('songs/',out)).length,4);
+  assert.ok(!readdirSync(new URL('songs/',out)).some(n=>n.includes('Frank Sinatra - Jingle Bells 4')));
+  const info=JSON.parse(read('build-info.json'));
+  assert.match(info.source_sha256, /^[a-f0-9]{64}$/);
+});

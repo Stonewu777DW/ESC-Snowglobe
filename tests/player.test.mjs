@@ -112,7 +112,23 @@ test('reader status flips to offline when the pedestal disappears', () => {
 });
 
 test('manual trigger works with no hardware at all (speaker test)', () => {
-  const { player, events } = rig();
+  const { player, events, advance } = rig();
   player.playManually('jingle-bells');
   assert.deepEqual(events, [['play', 'jingle-bells']]);
+  advance(10000);
+  player.tick();
+  assert.equal(player.currentSong(), 'jingle-bells', 'a speaker test has no reader heartbeat to time out');
+});
+
+test('a real scan after a manual test restores removal and disconnect stops', () => {
+  const { player, advance } = rig();
+  player.playManually('jingle-bells');
+  player.onTagMessage({ reader: 'AB12', song: 'frosty', present: true });
+  advance(3500);
+  player.tick();
+  assert.equal(player.currentSong(), null);
+  player.playManually('jingle-bells');
+  player.onTagMessage({ reader: 'AB12', song: 'jingle-bells', present: true });
+  player.onTagMessage({ reader: 'AB12', song: null, present: false });
+  assert.equal(player.currentSong(), null);
 });

@@ -9,11 +9,12 @@
   },
   "scripts": {
     "test": "bash run_tests.sh",
-    "serve": "python3 -m http.server 8000"
+    "serve": "python3 -m http.server 8000",
+    "build": "python3 tools/build_site.py"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Stonewu777DW/ESC-Snowglobe.git"
+    "url": "git+https://github.com/sidatpho/ESC-Snowglobe.git"
   },
   "keywords": [
     "nfc",
@@ -25,9 +26,9 @@
   "license": "ISC",
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/Stonewu777DW/ESC-Snowglobe/issues"
+    "url": "https://github.com/sidatpho/ESC-Snowglobe/issues"
   },
-  "homepage": "https://github.com/Stonewu777DW/ESC-Snowglobe#readme",
+  "homepage": "https://github.com/sidatpho/ESC-Snowglobe#readme",
   "devDependencies": {
     "jsdom": "^31.0.0"
   }

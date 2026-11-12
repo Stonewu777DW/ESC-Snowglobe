@@ -68,7 +68,7 @@
 // lists them. To add a song: drop the mp3 in songs/, add a line here, write the
 // slug to a tag. Nothing else changes.
 const SONGS = [
-  { slug: 'jingle-bells',    title: 'Jingle Bells',           file: 'songs/Frank Sinatra - Jingle Bells 4.mp3' },
+  { slug: 'jingle-bells',    title: 'Jingle Bells',           file: 'songs/Jingle Bells - Sinatra (Intro Trimmed).mp3' },
   { slug: 'frosty',          title: 'Frosty the Snowman',     file: 'songs/Frosty the Snowman (with lyrics).mp3' },
   { slug: 'rudolph',         title: 'Rudolph the Red-Nosed Reindeer', file: 'songs/Gene Autry - Rudolph the Red-Nosed Reindeer (Audio) 4.mp3' },
   { slug: 'white-christmas', title: 'White Christmas',        file: 'songs/White Christmas (Official Video) 4.mp3' },
@@ -96,6 +96,8 @@ let room = params.get('room') || localStorage.getItem('roomId') || '';
 
 // ---- Player ---------------------------------------------------------------
 let soundOn = false;
+// Invalidate work belonging to the previous song, even when rAF was delayed in a background tab.
+let audioGeneration = 0;
 
 function showIdle(text) {
   nowEl.textContent = text || 'Waiting for a globe';
@@ -103,10 +105,12 @@ function showIdle(text) {
 }
 
 function fadeTo(target, then) {
+  const generation = audioGeneration;
   const start = audio.volume;
   const t0 = performance.now();
   const step = (t) => {
-    const k = Math.min(1, (t - t0) / 180);
+    if (generation !== audioGeneration) return;
+    const k = Math.max(0, Math.min(1, (t - t0) / 180));
     audio.volume = start + (target - start) * k;
     if (k < 1) requestAnimationFrame(step);
     else if (then) then();
@@ -119,19 +123,25 @@ const player = EscPlayer.createPlayer({
   timeoutMs: READER_TIMEOUT_MS,
   hooks: {
     onPlay(song) {
+      const generation = ++audioGeneration;
       audio.pause();
       audio.src = song.file;   // new src always starts from the beginning
       audio.volume = 1;
       const started = audio.play();
-      if (started && started.catch) started.catch(() => setSoundOn(false));
+      if (started && started.catch) started.catch(() => {
+        if (generation === audioGeneration) setSoundOn(false);
+      });
       nowEl.textContent = song.title;
       nowEl.classList.remove('idle');
       statusEl.textContent = soundOn ? '' : 'Click the button above to let this page play audio';
     },
-    onStop() {
+    onStop(slug, reason) {
+      ++audioGeneration;
       fadeTo(0, () => { audio.pause(); audio.currentTime = 0; audio.volume = 1; });
       showIdle();
-      statusEl.textContent = '';
+      statusEl.textContent = reason === 'tag removed' ? 'Globe lifted or tag no longer readable'
+        : reason === 'lost the reader' ? 'Stopped: no tag heartbeat for 3 seconds' : '';
+      console.info('[playback] stopped', { slug, reason });
     },
     onUnknown(slug) {
       statusEl.textContent = 'Tag says "' + slug + '", which is not in SONGS in index.html';
@@ -155,8 +165,13 @@ soundBtn.addEventListener('click', () => {
     audio.play().catch(() => setSoundOn(false));
   } else {
     // Play and pause once so Safari allows the next real song without another click.
+    const generation = ++audioGeneration;
     audio.src = SONGS[0].file;
-    audio.play().then(() => { audio.pause(); audio.currentTime = 0; }, () => setSoundOn(false));
+    audio.play().then(() => {
+      if (generation !== audioGeneration) return;
+      audio.pause();
+      audio.currentTime = 0;
+    }, () => { if (generation === audioGeneration) setSoundOn(false); });
   }
   setSoundOn(true);
 });

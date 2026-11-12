@@ -1,2 +1,10 @@
 node_modules/
 .DS_Store
+dist/
+build/
+.env
+.env.*
+!.env.example
+.wrangler/
+__pycache__/
+*.pyc

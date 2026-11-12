@@ -22,16 +22,23 @@
 // ---------------------------------------------------------------------------
 #include <SPI.h>
 #include <MFRC522.h>
+#ifdef ESC_BLE_MODE
+#include <ArduinoBLE.h>
+#include <bleprotocol.h>
+#else
 #include <WiFiS3.h>
 #include <ArduinoMqttClient.h>
+#endif
 
 #include "config.h"
 #include <ESCShared.h>
 #include "songs.h"
 
 MFRC522 rfid(RC522_SS_PIN, RC522_RST_PIN);
+#ifndef ESC_BLE_MODE
 WiFiClient wifiClient;
 MqttClient mqtt(wifiClient);
+#endif
 PresenceTracker tracker(TAG_START_MS, TAG_LOST_MS);
 
 char readerId[16] = "reader";
@@ -90,6 +97,66 @@ bool slugFromTag(char *slug, size_t cap) {
 }
 
 // --- network ---------------------------------------------------------------
+#ifdef ESC_BLE_MODE
+BLEService pedestalService(ESC_BLE_SERVICE);
+BLEStringCharacteristic pedestalState(ESC_BLE_STATE, BLERead | BLENotify, 40);
+bool bleReady = false, bleWasConnected = false;
+bool readerHealthy = false;
+uint32_t lastBleSnapshot = 0;
+char bleName[24];
+
+void updateBleSnapshot() {
+  if (!bleReady) return;
+  byte version = rfid.PCD_ReadRegister(MFRC522::VersionReg);
+  readerHealthy = version != 0x00 && version != 0xFF;
+  char snapshot[40];
+  if (escBleSnapshot(snapshot, sizeof(snapshot), readerId,
+                     tracker.playing() ? tracker.active() : nullptr, readerHealthy)) {
+    pedestalState.writeValue(snapshot);
+  }
+}
+
+void publishTag(const char *, bool) { updateBleSnapshot(); }
+
+void startBle() {
+  // Boot must not wait for a USB serial monitor: the final unit runs from a battery.
+  if (!BLE.begin()) {
+    Serial.println("[ble] radio initialization failed; check UNO R4 connectivity firmware");
+    return;
+  }
+  String address = BLE.address();
+  address.replace(":", "");
+  address.toUpperCase();
+  strncpy(readerId, "0000", sizeof(readerId));
+  if (address.length() >= 4) address.substring(address.length() - 4).toCharArray(readerId, sizeof(readerId));
+  snprintf(bleName, sizeof(bleName), "ESC Pedestal %s", readerId);
+  BLE.setLocalName(bleName);
+  BLE.setDeviceName(bleName);
+  BLE.setAdvertisedService(pedestalService);
+  pedestalService.addCharacteristic(pedestalState);
+  BLE.addService(pedestalService);
+  bleReady = true;
+  updateBleSnapshot();
+  BLE.advertise();
+  Serial.print("[ble] advertising "); Serial.println(bleName);
+}
+
+void networkTick() {
+  if (!bleReady) return;
+  BLE.poll();
+  bool connected = BLE.connected();
+  if (connected != bleWasConnected) {
+    Serial.println(connected ? "[ble] computer connected" : "[ble] disconnected; advertising again");
+    bleWasConnected = connected;
+    if (!connected) BLE.advertise();
+    updateBleSnapshot();
+  }
+  if (millis() - lastBleSnapshot >= 1000) {
+    lastBleSnapshot = millis();
+    updateBleSnapshot();
+  }
+}
+#else
 bool wifiLinked = false, wifiWarned = false, wifiTried = false;
 uint32_t wifiStartedAt = 0;
 
@@ -207,6 +274,8 @@ void networkTick() {
   }
 }
 
+#endif  // ESC_BLE_MODE
+
 // --- reader ----------------------------------------------------------------
 void handleEvent(int event) {
   if (event == 1) {
@@ -286,6 +355,9 @@ void setup() {
   pinMode(BUZZER_PIN, OUTPUT);
 #endif
 
+  #ifdef ESC_BLE_MODE
+  startBle();
+  #else
   snprintf(topicTag, sizeof(topicTag), "esc-snowglobe/%s/tag", ROOM_CODE);
   snprintf(topicReader, sizeof(topicReader), "esc-snowglobe/%s/reader", ROOM_CODE);
 
@@ -306,6 +378,7 @@ void setup() {
   if (strlen(WIFI_SSID) == 0) {
     Serial.println("No WIFI_SSID in config.h — running serial-only. Set it to talk to the page.");
   }
+  #endif
 }
 
 void loop() {

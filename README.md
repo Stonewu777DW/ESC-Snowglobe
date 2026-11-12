@@ -17,9 +17,10 @@ speaker. There is no Wi-Fi setup, room code, account or USB cable during normal 
 Pair a Bluetooth speaker with the **computer**, not the Arduino. Keep the tab open
 and computer awake. The **How it works** page has the detailed instructions.
 
-**Hosting status:** Cloudflare deployment is not live yet. The existing account
-credential expired; deployment is gated until it is renewed. No live URL is claimed.
-The exact deployment state is tracked in [DEPLOYMENT.md](docs/DEPLOYMENT.md).
+**Live player:** https://esc-snowglobe.pages.dev/
+
+Pushes/merges to `main` automatically run tests and deploy to the same site.
+The verified deployment and recovery steps are in [DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## What is in this repo?
 

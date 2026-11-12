@@ -10,10 +10,13 @@ room code or USB during normal use. Speaker pairing belongs to the computer.
 - Original: https://github.com/Stonewu777DW/ESC-Snowglobe
 - Owner authorized the fork after upstream returned push:false and HTTP 403.
 - Local origin remains upstream; personal remote is the owner fork.
-- Target host: Cloudflare Pages, project esc-snowglobe.
-- **Hosting blocked:** saved Cloudflare token reports expired. No live URL yet.
-- CI/auto-deploy definition: .github/workflows/ci.yml. Deploy is disabled until
-  credential secrets and CLOUDFLARE_DEPLOY_ENABLED are configured/verified.
+- Live player: https://esc-snowglobe.pages.dev/ (Cloudflare Pages, esc-snowglobe).
+- Verified 2026-11-12: workflow 43192739228 passed tests and production deployment;
+  served commit 9dac0a1a484aac7e9264c9d1f1f690841012f6b4 and all nine source assets matched.
+- CI/auto-deploy definition: .github/workflows/ci.yml. Credential secrets configured;
+  CLOUDFLARE_DEPLOY_ENABLED=true. Pushes/merges to main deploy after tests.
+- Hosted headless playback/removal/guide/mobile checks passed with simulated GATT;
+  this is not actual-radio or audible speaker acceptance.
 
 ## Read next
 
@@ -74,8 +77,8 @@ missed updates. The final fix still needs actual-radio reconnect verification.
 
 1. Audible selected-speaker playback with final UI and real BLE after reconnect.
 2. Closed-enclosure sustained playback, swaps/reconnect, practical battery runtime.
-3. Renew Cloudflare credential; configure account/project/secrets, enable deploy;
-   verify a real deployment and served commit/assets before declaring it live.
+3. Keep deployments verified against served build-info.json and asset bytes; initial
+   Cloudflare publication passed. CI deploys main automatically after tests.
 4. Preserve attribution. Public visibility is not a license to third-party recordings.
 
 Safety/contracts: RC522 is 3.3 V only. Presence uses WUPA, not REQA-only logic.

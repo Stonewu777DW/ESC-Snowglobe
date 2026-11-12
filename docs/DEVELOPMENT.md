@@ -22,6 +22,15 @@ Optional Python dependencies: pip install playwright, then
 python3 -m playwright install chromium. Run tools/test_browser.py after starting
 python3 -m http.server 8000 from the repo root.
 
+To check the actual hosted artifact (still simulated GATT):
+
+```sh
+ESC_TEST_BASE_URL=https://esc-snowglobe.pages.dev/ python3 tools/test_browser.py
+```
+
+CI pins Ubuntu 24.04 for the selected Playwright release. The legacy setup dry
+run uses labeled fixture inputs and must not query workstation Wi-Fi or Keychain.
+
 The test launches headless Chromium, injects a fake GATT device at the hardware
 boundary, runs the real ble.js/player.js, and decodes a real MP3. It checks picker
 invocation, read-event recursion, playback/removal/disconnect, volume, elapsed and

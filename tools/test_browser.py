@@ -1,6 +1,7 @@
 import json
+import os
 from playwright.sync_api import sync_playwright
-BASE='http://localhost:8000/'
+BASE=os.environ.get('ESC_TEST_BASE_URL', 'http://localhost:8000/').rstrip('/')+'/'
 with sync_playwright() as p:
     browser=p.chromium.launch(headless=True)
     page=browser.new_page(viewport={'width':1280,'height':900})
@@ -44,7 +45,8 @@ with sync_playwright() as p:
     page.click('a[href="instructions.html"]')
     assert page.locator('h1').inner_text().startswith('A globe.')
     page.click('text=Back to player →')
-    assert page.url.endswith('wireless.html')
+    # Pages may canonicalize wireless.html to /wireless; verify the player itself.
+    assert page.locator('#connect').inner_text()=='Connect'
     assert not errors, errors
     print(json.dumps({'passed':True,'checks':['circular connect','single service-filtered picker request','real ble.js with simulated GATT','read event recursion regression','real MP3 decode and playback','live elapsed/duration','volume','tag removal','disconnect','responsive 320/390/700/1280','instructions navigation'],'page_errors':errors},indent=2))
     browser.close()

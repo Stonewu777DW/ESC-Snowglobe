@@ -99,8 +99,9 @@ The existing project's GitHub Pages source is **main /** and still hosts the old
 camera version. Do not claim that feature-branch files are already live there.
 Upstream push was denied (403). The owner explicitly authorized a personal fork:
 https://github.com/sidatpho/ESC-Snowglobe. Cloudflare Pages is the selected host;
-the saved Cloudflare token reports expired, so deployment remains blocked.
-See DEPLOYMENT.md for current CI/credential setup. No live URL is claimed.
+the live Cloudflare player is https://esc-snowglobe.pages.dev/.
+Main pushes/merges run tests and auto-deploy. See DEPLOYMENT.md for verification,
+credential rotation and recovery.
 
 ## Evidence and remaining acceptance gates
 

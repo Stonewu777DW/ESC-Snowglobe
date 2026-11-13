@@ -1,0 +1,7 @@
+// Cloudflare Workers hosting: serves the player files that `python3 tools/build_site.py` puts in dist/.
+// Set the Worker's build command to `python3 tools/build_site.py` and its deploy command to `npx wrangler deploy`.
+{
+  "name": "esc-snowglobe",
+  "compatibility_date": "2026-11-01",
+  "assets": { "directory": "./dist" }
+}

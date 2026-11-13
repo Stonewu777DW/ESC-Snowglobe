@@ -38,9 +38,12 @@ test('speaker test has a stop control even while connected', (t) => {
   assert.equal(d.querySelector('#stop').hidden, true);
 });
 
-test('O Christmas Tree plays from its button until Stop, and a globe takes over', (t) => {
+test('O Christmas Tree unlocks with the puzzle checkbox, plays until Stop, and a globe takes over', (t) => {
   const r = boot(t); const d = r.window.document;
   r.state('connected', 'ESC Pedestal E068');
+  assert.equal(d.querySelector('#tree').disabled, true);
+  d.querySelector('#puzzleDone').click();
+  assert.equal(d.querySelector('#tree').disabled, false);
   d.querySelector('#tree').click();
   assert.match(r.audio.src, /O Tannenbaum/);
   assert.equal(r.audio.paused, false);

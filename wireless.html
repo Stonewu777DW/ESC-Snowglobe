@@ -14,6 +14,10 @@
  <p id="connection" class="connection">Not connected</p>
  <p id="status" class="status" role="status" aria-live="polite">Connect your pedestal to begin.</p>
  <button id="sound" class="text-button" hidden>Enable sound</button>
+ <div class="tree-unlock">
+  <label><input id="puzzleDone" type="checkbox"> Players Completed Music Sheet Puzzle</label>
+  <button id="tree" class="tree-button" disabled>Play O Christmas Tree</button>
+ </div>
 </section>
 <section class="player" aria-label="Live playback">
  <div class="eyebrow"><span class="live-dot" aria-hidden="true"></span> NOW PLAYING</div>
@@ -26,7 +30,7 @@
   <div><dt>Audio output</dt><dd>Computer’s selected speaker</dd></div>
  </dl>
  <div class="volume-row"><label for="volume">Volume</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.8" aria-label="Playback volume"><output id="volumeValue" for="volume">80%</output></div>
- <div class="utilities"><button id="tree" class="text-button">Play O Christmas Tree</button><button id="test" class="text-button">Test speaker</button><button id="stop" class="text-button" hidden>Stop</button></div>
+ <div class="utilities"><button id="test" class="text-button">Test speaker</button><button id="stop" class="text-button" hidden>Stop</button></div>
 </section>
 </main>
 <footer class="page-footer"><span class="holly" aria-hidden="true">●</span> A little Christmas, on cue.</footer>
@@ -118,6 +122,8 @@ function playFromButton(slug, message) {
 }
 $('test').addEventListener('click', () => playFromButton('jingle-bells', 'Speaker test — click Stop when finished.'));
 $('tree').addEventListener('click', () => playFromButton('o-christmas-tree', 'Click Stop when finished.'));
+// The O Christmas Tree button unlocks once the GM ticks that players solved the music sheet puzzle.
+$('puzzleDone').addEventListener('change', () => { $('tree').disabled = !$('puzzleDone').checked; });
 $('stop').addEventListener('click', () => player.stopManually());
 $('sound').addEventListener('click', () => {
   audio.play().then(() => { $('sound').hidden = true; playback('Playing'); }, () => status('Audio could not play. Check the selected speaker and reload.', true));

@@ -26,7 +26,7 @@
   <div><dt>Audio output</dt><dd>Computer’s selected speaker</dd></div>
  </dl>
  <div class="volume-row"><label for="volume">Volume</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.8" aria-label="Playback volume"><output id="volumeValue" for="volume">80%</output></div>
- <div class="utilities"><button id="test" class="text-button">Test speaker</button><button id="stop" class="text-button" hidden>Stop test</button></div>
+ <div class="utilities"><button id="tree" class="text-button">Play O Christmas Tree</button><button id="test" class="text-button">Test speaker</button><button id="stop" class="text-button" hidden>Stop</button></div>
 </section>
 </main>
 <footer class="page-footer"><span class="holly" aria-hidden="true">●</span> A little Christmas, on cue.</footer>
@@ -37,6 +37,8 @@ const SONGS = [
   {slug:'frosty',title:'Frosty the Snowman',file:'songs/Frosty the Snowman (with lyrics).mp3'},
   {slug:'rudolph',title:'Rudolph the Red-Nosed Reindeer',file:'songs/Gene Autry - Rudolph the Red-Nosed Reindeer (Audio) 4.mp3'},
   {slug:'white-christmas',title:'White Christmas',file:'songs/White Christmas (Official Video) 4.mp3'},
+  // No globe has this tag: it only plays from the "Play O Christmas Tree" button.
+  {slug:'o-christmas-tree',title:'O Christmas Tree',file:'songs/O Tannenbaum - Vince Guaraldi Trio (36s).mp3'},
 ];
 const $ = (id) => document.getElementById(id);
 const audio = new Audio();
@@ -57,7 +59,7 @@ const player = EscPlayer.createPlayer({ songs: SONGS, timeoutMs: 3500, hooks: {
     const mine = ++audioGeneration;
     audio.pause(); audio.src = song.file; audio.volume = Number($('volume').value);
     $('nowPlaying').textContent = song.title; playback('Playing'); $('stop').hidden = connected;
-    status(connected ? 'Lift the globe to stop.' : 'Speaker test — click Stop test when finished.');
+    status(connected ? 'Lift the globe to stop.' : 'Click Stop when finished.');
     audio.play().catch(() => { if (mine === audioGeneration) {
       $('sound').hidden = false; playback('Sound blocked'); status('Click Enable sound to allow playback.', true);
     } });
@@ -109,10 +111,13 @@ function unlockSound() {
 }
 $('connect').addEventListener('click', () => { unlockSound(); void connection.connect(); });
 $('disconnect').addEventListener('click', () => connection.disconnect());
-$('test').addEventListener('click', () => {
-  player.playManually('jingle-bells'); $('stop').hidden = false;
-  status('Speaker test — click Stop test when finished.');
-});
+// Play a song from a button; it repeats until Stop, and a globe placed on the pedestal takes over.
+function playFromButton(slug, message) {
+  player.playManually(slug); $('stop').hidden = false;
+  status(message);
+}
+$('test').addEventListener('click', () => playFromButton('jingle-bells', 'Speaker test — click Stop when finished.'));
+$('tree').addEventListener('click', () => playFromButton('o-christmas-tree', 'Click Stop when finished.'));
 $('stop').addEventListener('click', () => player.stopManually());
 $('sound').addEventListener('click', () => {
   audio.play().then(() => { $('sound').hidden = true; playback('Playing'); }, () => status('Audio could not play. Check the selected speaker and reload.', true));

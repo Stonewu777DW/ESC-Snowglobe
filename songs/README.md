@@ -6,6 +6,7 @@
 | frosty | Frosty the Snowman (with lyrics).mp3 |
 | rudolph | Gene Autry - Rudolph the Red-Nosed Reindeer (Audio) 4.mp3 |
 | white-christmas | White Christmas (Official Video) 4.mp3 |
+| o-christmas-tree | O Tannenbaum - Vince Guaraldi Trio (36s).mp3 (button only, first 36 s with a 1.5 s fade-out) |
 
 Recordings were inherited from the original public project. This repo does not
 grant rights to recordings or certify permission for public hosting/use. An

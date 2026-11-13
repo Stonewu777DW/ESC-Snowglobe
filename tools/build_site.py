@@ -13,8 +13,9 @@ OUT = ROOT / 'dist'
 def build():
     html = (ROOT / 'wireless.html').read_text()
     songs = re.findall(r"file:'(songs/[^']+)'", html)
-    if len(songs) != 4 or len(set(songs)) != 4:
-        raise ValueError('Expected exactly four distinct playlist files')
+    # Four globe songs plus O Christmas Tree, which plays from a button.
+    if len(songs) != 5 or len(set(songs)) != 5:
+        raise ValueError('Expected exactly five distinct playlist files')
     assets = ['wireless.html', 'instructions.html', 'wireless.css', 'player.js', 'ble.js', *songs]
     for name in assets:
         source = (ROOT / name).resolve()

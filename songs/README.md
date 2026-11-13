@@ -17,3 +17,5 @@ a different performance. See docs/PLAYBACK-INVESTIGATION.md.
 
 The new playlist is in wireless.html; legacy is in index.html. Keep their file
 mapping consistent or update the agreement tests.
+
+All five active files are loudness-levelled to about -16 LUFS (two-pass ffmpeg loudnorm, true peak at or below -1.5 dBTP) so they play at the same volume.

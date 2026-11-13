@@ -47,7 +47,6 @@ const SONGS = [
 const $ = (id) => document.getElementById(id);
 const audio = new Audio();
 audio.preload = 'auto'; audio.volume = Number($('volume').value);
-audio.loop = true; // a song repeats while its globe stays on the pedestal
 let audioGeneration = 0, connected = false, healthy = false;
 function playback(text) { $('playbackState').textContent = text; document.body.dataset.playing = String(text === 'Playing'); }
 function clock(seconds) { if (!Number.isFinite(seconds) || seconds < 0) return '—:—'; return Math.floor(seconds / 60) + ':' + String(Math.floor(seconds % 60)).padStart(2, '0'); }
@@ -57,12 +56,16 @@ function updateTime() {
   $('progress').value = Number.isFinite(audio.duration) && audio.duration > 0 ? Math.min(1, (audio.currentTime || 0) / audio.duration) : 0;
 }
 function status(text, error = false) { $('status').textContent = text; $('status').classList.toggle('error', error); }
-function halt() { ++audioGeneration; audio.pause(); audio.currentTime = 0; playback('Idle'); updateTime(); $('stop').hidden = true; }
+function halt() { ++audioGeneration; audio.pause(); audio.currentTime = 0; playback('Idle'); updateTime(); $('stop').hidden = true; treeLabel(); }
+// The big O Christmas Tree button doubles as its stop button while that song plays.
+function treeLabel() { $('tree').textContent = player.currentSong() === 'o-christmas-tree' ? 'Stop Playing' : 'Play O Christmas Tree'; }
 const player = EscPlayer.createPlayer({ songs: SONGS, timeoutMs: 3500, hooks: {
   onPlay(song) {
     const mine = ++audioGeneration;
     audio.pause(); audio.src = song.file; audio.volume = Number($('volume').value);
-    $('nowPlaying').textContent = song.title; playback('Playing'); $('stop').hidden = connected;
+    // Globe songs repeat while the globe stays on the pedestal; O Christmas Tree plays once.
+    audio.loop = song.slug !== 'o-christmas-tree';
+    $('nowPlaying').textContent = song.title; playback('Playing'); $('stop').hidden = connected; treeLabel();
     status(connected ? 'Lift the globe to stop.' : 'Click Stop when finished.');
     audio.play().catch(() => { if (mine === audioGeneration) {
       $('sound').hidden = false; playback('Sound blocked'); status('Click Enable sound to allow playback.', true);
@@ -116,13 +119,15 @@ function unlockSound() {
 }
 $('connect').addEventListener('click', () => { unlockSound(); void connection.connect(); });
 $('disconnect').addEventListener('click', () => connection.disconnect());
-// Play a song from a button; it repeats until Stop, and a globe placed on the pedestal takes over.
-function playFromButton(slug, message) {
-  player.playManually(slug); $('stop').hidden = false;
-  status(message);
-}
-$('test').addEventListener('click', () => playFromButton('jingle-bells', 'Speaker test — click Stop when finished.'));
-$('tree').addEventListener('click', () => playFromButton('o-christmas-tree', 'Click Stop when finished.'));
+$('test').addEventListener('click', () => {
+  player.playManually('jingle-bells'); $('stop').hidden = false;
+  status('Speaker test — click Stop when finished.');
+});
+$('tree').addEventListener('click', () => {
+  if (player.currentSong() === 'o-christmas-tree') { player.stopManually(); return; }
+  player.playManually('o-christmas-tree'); $('stop').hidden = true;
+  status('O Christmas Tree plays once. Click Stop Playing to end it early.');
+});
 // Ticking "Players Completed Music Sheet Puzzle" unlocks the O Christmas Tree button and makes the
 // pedestal ignore globes; unticking goes back to normal. Either way, the song playing stops.
 // (autocomplete="off" keeps the browser from re-ticking the box after a reload.)
@@ -138,6 +143,7 @@ $('volume').addEventListener('input', () => { audio.volume = Number($('volume').
 audio.addEventListener?.('error', () => { playback('Load error'); status('The song could not load. Check your internet connection and reload.', true); });
 audio.addEventListener?.('playing', () => { if (player.currentSong()) playback('Playing'); });
 audio.addEventListener?.('waiting', () => { if (player.currentSong()) playback('Buffering'); });
+audio.addEventListener?.('ended', () => player.stopManually()); // only O Christmas Tree ends; the rest loop
 audio.addEventListener?.('timeupdate', updateTime);
 audio.addEventListener?.('loadedmetadata', updateTime);
 if (!isSecureContext || !navigator.bluetooth) {

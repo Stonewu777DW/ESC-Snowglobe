@@ -38,7 +38,7 @@ test('speaker test has a stop control even while connected', (t) => {
   assert.equal(d.querySelector('#stop').hidden, true);
 });
 
-test('O Christmas Tree unlocks with the puzzle checkbox, plays until Stop, and a globe takes over', (t) => {
+test('O Christmas Tree unlocks with the puzzle checkbox and plays until Stop', (t) => {
   const r = boot(t); const d = r.window.document;
   r.state('connected', 'ESC Pedestal E068');
   assert.equal(d.querySelector('#tree').disabled, true);
@@ -49,11 +49,27 @@ test('O Christmas Tree unlocks with the puzzle checkbox, plays until Stop, and a
   assert.equal(r.audio.paused, false);
   assert.equal(d.querySelector('#nowPlaying').textContent, 'O Christmas Tree');
   assert.equal(d.querySelector('#stop').hidden, false);
-  r.snapshot(healthy('frosty'));
-  assert.match(r.audio.src, /Frosty/);
-  d.querySelector('#tree').click();
   d.querySelector('#stop').click();
   assert.equal(r.audio.paused, true);
+});
+
+test('while the puzzle box is ticked, globes are ignored; unticking restores them', (t) => {
+  const r = boot(t); const d = r.window.document;
+  r.state('connected', 'ESC Pedestal E068');
+  r.snapshot(healthy('frosty'));
+  assert.match(r.audio.src, /Frosty/);
+  d.querySelector('#puzzleDone').click();
+  assert.equal(r.audio.paused, true);
+  r.snapshot(healthy('frosty'));
+  assert.equal(r.audio.paused, true);
+  d.querySelector('#tree').click();
+  r.snapshot(healthy('rudolph'));
+  assert.match(r.audio.src, /O Tannenbaum/);
+  assert.equal(r.audio.paused, false);
+  d.querySelector('#puzzleDone').click();
+  assert.equal(r.audio.paused, true);
+  r.snapshot(healthy('rudolph'));
+  assert.match(r.audio.src, /Rudolph/);
 });
 
 test('a song repeats while its globe stays on the pedestal', (t) => {

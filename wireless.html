@@ -15,7 +15,7 @@
  <p id="status" class="status" role="status" aria-live="polite">Connect your pedestal to begin.</p>
  <button id="sound" class="text-button" hidden>Enable sound</button>
  <div class="tree-unlock">
-  <label><input id="puzzleDone" type="checkbox"> Players Completed Music Sheet Puzzle</label>
+  <label><input id="puzzleDone" type="checkbox" autocomplete="off"> Players Completed Music Sheet Puzzle</label>
   <button id="tree" class="tree-button" disabled>Play O Christmas Tree</button>
  </div>
 </section>
@@ -86,7 +86,8 @@ const connection = EscBle.createConnection({
     }
     $('connection').textContent = 'Pedestal ready · ' + snapshot.reader;
     player.onReaderStatus({ reader: snapshot.reader, state: 'online' });
-    player.onTagMessage(snapshot);
+    // While the music sheet puzzle box is ticked, globes on the pedestal are ignored.
+    if (!$('puzzleDone').checked) player.onTagMessage(snapshot);
   },
   onState(state, detail) {
     connected = state === 'connected';
@@ -122,8 +123,13 @@ function playFromButton(slug, message) {
 }
 $('test').addEventListener('click', () => playFromButton('jingle-bells', 'Speaker test — click Stop when finished.'));
 $('tree').addEventListener('click', () => playFromButton('o-christmas-tree', 'Click Stop when finished.'));
-// The O Christmas Tree button unlocks once the GM ticks that players solved the music sheet puzzle.
-$('puzzleDone').addEventListener('change', () => { $('tree').disabled = !$('puzzleDone').checked; });
+// Ticking "Players Completed Music Sheet Puzzle" unlocks the O Christmas Tree button and makes the
+// pedestal ignore globes; unticking goes back to normal. Either way, the song playing stops.
+// (autocomplete="off" keeps the browser from re-ticking the box after a reload.)
+$('puzzleDone').addEventListener('change', () => {
+  $('tree').disabled = !$('puzzleDone').checked;
+  player.stopManually();
+});
 $('stop').addEventListener('click', () => player.stopManually());
 $('sound').addEventListener('click', () => {
   audio.play().then(() => { $('sound').hidden = true; playback('Playing'); }, () => status('Audio could not play. Check the selected speaker and reload.', true));

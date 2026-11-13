@@ -1,0 +1,35 @@
+{
+  "name": "esc-snowglobe",
+  "version": "2.0.0",
+  "description": "NFC pedestal: set a snow globe down, its tag picks the song, and the game computer plays it.",
+  "main": "player.js",
+  "directories": {
+    "lib": "lib",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "bash run_tests.sh",
+    "serve": "python3 -m http.server 8000",
+    "build": "python3 tools/build_site.py"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sidatpho/ESC-Snowglobe.git"
+  },
+  "keywords": [
+    "nfc",
+    "arduino",
+    "rc522",
+    "ntag",
+    "snowglobe"
+  ],
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/sidatpho/ESC-Snowglobe/issues"
+  },
+  "homepage": "https://github.com/sidatpho/ESC-Snowglobe#readme",
+  "devDependencies": {
+    "jsdom": "^31.0.0"
+  }
+}

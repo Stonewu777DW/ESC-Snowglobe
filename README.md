@@ -1,46 +1,116 @@
 # ESC Snowglobe
 
-Show an AprilTag to a phone's front camera and the game computer plays that tag's song.
-The song starts from the beginning when a tag appears and stops when the tag is gone for half a second.
+Battery-powered NFC pedestal + a very small Christmas music player.
 
-**Live page:** https://stonewu777dw.github.io/ESC-Snowglobe/
+**Put a globe down → its song plays. Lift it → the music stops.**
+The Arduino identifies the globe; the computer plays the audio through its selected
+speaker. There is no Wi-Fi setup, room code, account or USB cable during normal use.
 
-| Tag (AprilTag 36h11) | Song |
+## Use it
+
+1. Connect the prepared 9 V battery lead and close the pedestal. Remove the globe
+   and support the removable top plate before turning it upside down.
+2. Open the hosted player in **desktop Chrome or Edge**, click **Connect**, and
+   select **ESC Pedestal XXXX** in the browser's pop-up.
+3. Place a globe. Adjust the volume; lift the globe to stop.
+
+Pair a Bluetooth speaker with the **computer**, not the Arduino. Keep the tab open
+and computer awake. The **How it works** page has the detailed instructions.
+
+**Live player:** https://esc-snowglobe.pages.dev/
+
+Pushes/merges to `main` automatically run tests and deploy to the same site.
+The verified deployment and recovery steps are in [DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
+## What is in this repo?
+
+| Path | Purpose |
 |---|---|
-| [tag0](tags/tag0.svg) | Jingle Bells |
-| [tag1](tags/tag1.svg) | Frosty the Snowman |
-| [tag2](tags/tag2.svg) | Rudolph the Red-Nosed Reindeer |
-| [tag3](tags/tag3.svg) | White Christmas |
+| `wireless.html`, `wireless.css` | Minimal player: connection circle, song, progress, volume and live status |
+| `instructions.html` | Separate teammate setup/troubleshooting page |
+| `ble.js` | Web Bluetooth transport, validation, polling and reconnect handling |
+| `player.js` | Shared playback state machine |
+| `firmware/` | UNO R4 WiFi pedestal and NFC tag programmer sketches + shared library |
+| `hardware/pedestal-v9/` | Editable Blender file, generator, four STLs and reference image |
+| `songs/` | Four-song playlist + unmodified original Jingle Bells recording |
+| `tests/` | Native C++ and JavaScript/DOM regression tests |
+| `tools/build_site.py` | Whitelist-only static site export to `dist/` |
+| `.github/workflows/ci.yml` | Tests on PRs; gated Cloudflare deployment on main |
+| `index.html`, `lib/`, `tools/setup.py` | Retained legacy Wi-Fi/MQTT implementation, **not** the deployed main player |
 
-## For GMs
-1. On the game computer open **https://stonewu777dw.github.io/ESC-Snowglobe/** (bookmark it) and click the orange **Click to turn on sound** button.
-2. Scan the QR code on the computer screen with the phone's camera app, open the link, and allow the camera.
-3. Hold a tag up to the phone's front camera. Anywhere in the picture works, and bigger printed tags work from farther away.
+## Run locally
 
-Each computer keeps the same QR code, so you can print it and leave it in the room.
-If the phone is closed or loses connection, the computer stops the music after about 3 seconds.
+Use Node 24+, Python 3.10+, npm and a desktop browser with Web Bluetooth support.
 
-## How it works
+```sh
+npm ci
+npm run build
+python3 -m http.server 8000 --directory dist
+# Open http://localhost:8000/ in desktop Chrome or Edge.
 ```
- phone.html (front camera)                          index.html (game computer)
- finds tag 0-3 in each frame  --- "tag": 2 --->  plays song 2 from the start
- sends the tag every second       via a free     stops when the phone says "no tag"
- and whenever it changes          public MQTT    or goes quiet for 3 seconds
-                                  server
+
+The build exports the new Bluetooth page as **index.html**, keeps a wireless.html
+alias for guide links, and copies only its CSS/JS/guide and four selected MP3s.
+Never upload the repository root as the website.
+
+## Prepare an Arduino once (organizer only)
+
+Hardware: **Arduino UNO R4 WiFi**, RC522 reader, NTAG213/215/216 stickers and the
+prepared center-positive 9 V barrel-jack lead. RC522 power is **3.3 V, never 5 V**.
+See [wiring](docs/WIRING.md), [tags](docs/TAGS.md) and
+[BLE build/install](docs/WIRELESS-PEDESTAL.md#organizer-build-and-install).
+Normal use needs no Arduino IDE or firmware upload.
+
+```sh
+arduino-cli core update-index
+arduino-cli core install arduino:renesas_uno@1.6.0
+arduino-cli lib install 'ArduinoBLE@2.1.0' 'MFRC522@1.4.12' 'ArduinoMqttClient@0.1.8'
+arduino-cli compile --fqbn arduino:renesas_uno:unor4wifi \
+  --libraries firmware/libraries \
+  --build-property compiler.cpp.extra_flags=-DESC_BLE_MODE=1 \
+  --output-dir build/ble firmware/ESC_NFC_Pedestal
+arduino-cli board list
+# Replace <PORT> with the actual discovered UNO R4 port:
+arduino-cli upload --fqbn arduino:renesas_uno:unor4wifi --port <PORT> --input-dir build/ble
 ```
-- The computer page makes a random room code, saves it in the browser, and puts it in the QR code (`phone.html#<room code>`). Phone and computer only hear messages for that room.
-- A song starts once its tag has been in view for 0.5 seconds and stops once it has been gone for 0.5 seconds. These and other settings are at the top of each page's script.
-- Everything runs in the browser. There is no server of our own, so the site is just files on GitHub Pages.
 
-## Requirements
-- The computer and the phone both need internet. They pass messages through the free public EMQX message server (broker.emqx.io), so they work on any network, including mobile data.
-- Print the tags from `tags/` at least 5 cm wide, keeping the white margin around each tag.
+`ESC_BLE_MODE=1` is required: the default sketch build is the retained Wi-Fi mode.
+Do not use the legacy `tools/setup.py` for the battery/BLE flow.
 
-## Changing songs
-Put the mp3 files in `songs/` and list them in the `SONGS` list in `index.html`. The first line is tag 0, the second tag 1, and so on.
+## Test and contribute
 
-## Files
-- `index.html`: the game computer page (QR code and music)
-- `phone.html`: the phone page (camera and tag detection)
-- `songs/`, `tags/`: songs and printable tags
-- `lib/`: [js-aruco2](https://github.com/damianofalcioni/js-aruco2) (tag detection, with one marked change in `aruco.js` for easier detection), [MQTT.js](https://github.com/mqttjs/MQTT.js) (messages) and [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) (QR code), all MIT licensed
+```sh
+npm ci
+npm test       # g++, Python, Arduino CLI/core/libraries required; no board touched
+npm run build
+```
+
+CI runs the complete suite, including all three board builds. Headless integration
+tests can be run separately; see [DEVELOPMENT.md](docs/DEVELOPMENT.md).
+Fork the public repo and open a pull request. Maintainers review/merge into main;
+that triggers a deployment once Cloudflare credentials are configured. PRs do not
+receive deployment credentials. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Verified versus still unverified
+
+- BLE firmware uploaded; reader responds.
+- Battery-only BLE/GATT capture completed for 90 seconds: no globe → Rudolph → no globe.
+- Software tests cover reader faults, disconnect, repeated scans and playback races.
+- Isolated headless Chromium decoded real MP3 audio and checked responsive layouts.
+- **Still unverified:** audible output through the chosen speaker with the final UI,
+  closed-enclosure sustained playback and practical battery runtime.
+
+## Agent handoff and references
+
+Start at [INDEX.md](INDEX.md), then [.hermes.md](.hermes.md) /
+[architecture](docs/ARCHITECTURE.md). [Architecture](docs/ARCHITECTURE.md) documents state, wire
+format and safety contracts. Historical Wi-Fi instructions are in
+[LEGACY-WIFI.md](docs/LEGACY-WIFI.md).
+
+## Attribution and media
+
+This is a public fork of [Stonewu777DW/ESC-Snowglobe](https://github.com/Stonewu777DW/ESC-Snowglobe);
+its Git history and attribution are preserved. The inherited project did not include
+a top-level license grant. See [LICENSE-NOTICE.md](LICENSE-NOTICE.md) and
+[song/media notes](songs/README.md). Public repository access is not a blanket
+license to the third-party recordings. MQTT.js retains its own MIT notice.

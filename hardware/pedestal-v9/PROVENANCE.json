@@ -1,0 +1,36 @@
+{
+  "EscapeSC_v9.blend": {
+    "sha256": "29d33a13b77efabb9695bf1410097bdb6c65c378b0bd5758c286b2694cea1445",
+    "bytes": 1477084,
+    "unchanged_from_original": true
+  },
+  "EscapeSC_v9_hero.png": {
+    "sha256": "1e5e951e80440887773a5cea18f20711f2032d744e2204fc160a5a6ae9ff9479",
+    "bytes": 918616,
+    "unchanged_from_original": true
+  },
+  "EscapeSC_v9_Body.stl": {
+    "sha256": "fd13cb0a955821b57b0a71839a9295a21688fdba89c03263dec29508620c6e9b",
+    "bytes": 3284,
+    "unchanged_from_original": true,
+    "triangles": 64
+  },
+  "EscapeSC_v9_TopPlate.stl": {
+    "sha256": "6ead8af8efd3a9037ea92602d0819a0c0e6bad58df324515d3a6a01f50f30be5",
+    "bytes": 163084,
+    "unchanged_from_original": true,
+    "triangles": 3260
+  },
+  "EscapeSC_v9_BaseLid.stl": {
+    "sha256": "a28f65f0b472ccde40d5d64ad8deee2d74227e42df3faa130868754e568482ab",
+    "bytes": 27484,
+    "unchanged_from_original": true,
+    "triangles": 548
+  },
+  "EscapeSC_v9_CradleRing.stl": {
+    "sha256": "f2366fb8bf5243bd747c466a666ea578e4ce1843695adff8724213107ac3e2f6",
+    "bytes": 387484,
+    "unchanged_from_original": true,
+    "triangles": 7748
+  }
+}

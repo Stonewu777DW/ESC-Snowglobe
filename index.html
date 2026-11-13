@@ -1,10 +1,14 @@
 <!doctype html>
 <!--
-  COMPUTER PAGE (the "game computer" that plays the music)
-  1. Shows a QR code that opens the phone page with this computer's room code.
-  2. Listens on the message server for which tag the phone sees.
-  3. Plays that tag's song from the beginning, and stops when the phone reports no tag
-     or goes quiet for PHONE_TIMEOUT_MS.
+  COMPUTER PAGE — the machine that plays the music.
+  The pedestal (Arduino + RC522) reads the NFC tag on the bottom of the snow globe
+  and says which song is sitting there. This page plays it.
+
+  1. Join the same room as the pedestal (the code printed by the sketch's config.h).
+  2. Wait for "pedestal connected".
+  3. Click the sound button once, then set a globe on the pedestal.
+
+  Nothing here needs a phone, a camera or a QR code any more.
 -->
 <html lang="en">
 <head>
@@ -12,125 +16,223 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ESC Snowglobe</title>
 <style>
-  html, body { margin: 0; height: 100%; background: #000; color: #fff; font-family: system-ui, sans-serif; }
-  body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; text-align: center; }
-  #qr { width: min(60vh, 80vw); background: #fff; padding: 16px; border-radius: 8px; }
-  #qr svg { display: block; width: 100%; height: auto; }
-  #status { font-size: 32px; }
-  #sound { font: inherit; font-size: 24px; font-weight: 600; padding: 18px 36px; border: 0; border-radius: 999px;
-           cursor: pointer; color: #000; background: #ffb020; box-shadow: 0 0 0 0 rgba(255, 176, 32, 0.7);
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: radial-gradient(120% 90% at 50% 0%, #12233a 0%, #05080d 60%, #000 100%);
+               color: #f4f7fb; font-family: system-ui, -apple-system, sans-serif; }
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px;
+         text-align: center; padding: 32px; box-sizing: border-box; }
+  h1 { font-size: 15px; letter-spacing: .34em; text-transform: uppercase; font-weight: 600;
+       color: #8fb6e0; margin: 0; }
+  #nowPlaying { font-size: clamp(30px, 6vw, 64px); font-weight: 700; line-height: 1.1; min-height: 1.1em;
+                text-shadow: 0 4px 40px rgba(120, 190, 255, .35); }
+  #nowPlaying.idle { font-size: 26px; font-weight: 500; color: #7e8ea3; text-shadow: none; }
+  #link { display: flex; align-items: center; gap: 10px; font-size: 15px; color: #8fa3ba; flex-wrap: wrap;
+          justify-content: center; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #d24b4b; display: inline-block;
+         box-shadow: 0 0 12px currentColor; }
+  .dot.on { background: #38d47c; }
+  #room { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 15px; background: #0d1622;
+          color: #cfe4ff; border: 1px solid #24374f; border-radius: 8px; padding: 7px 10px; width: 20ch; text-align: center; }
+  #sound { font: inherit; font-size: 22px; font-weight: 700; padding: 20px 40px; border: 0; border-radius: 999px;
+           cursor: pointer; color: #10161f; background: #ffb020; box-shadow: 0 0 0 0 rgba(255, 176, 32, .7);
            animation: pulse 1.6s infinite; }
-  #sound.on { background: #2ecc71; animation: none; cursor: default; }
-  @keyframes pulse { 70% { box-shadow: 0 0 0 18px rgba(255, 176, 32, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 176, 32, 0); } }
+  #sound.on { background: #38d47c; animation: none; cursor: default; }
+  @keyframes pulse { 70% { box-shadow: 0 0 0 20px rgba(255, 176, 32, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 176, 32, 0); } }
+  #status { font-size: 15px; color: #7e8ea3; min-height: 1.2em; }
+  #help { font-size: 13px; color: #56657a; line-height: 1.7; }
+  kbd { background: #16222f; border: 1px solid #26374b; border-bottom-width: 2px; border-radius: 5px;
+        padding: 1px 6px; font-family: inherit; font-size: 12px; color: #b9cbe0; }
 </style>
 </head>
 <body>
-<div id="qr"></div>
-<div id="status">Connecting…</div>
+<h1>ESC Snowglobe</h1>
+<div id="nowPlaying" class="idle">Waiting for a globe</div>
+
+<div id="link">
+  <span class="dot" id="dot"></span>
+  <span id="readerState">Pedestal offline</span>
+  <span style="opacity:.5">·</span>
+  <span>room</span>
+  <input id="room" spellcheck="false" autocomplete="off" aria-label="Room code">
+</div>
+
 <button id="sound">🔊 Click to turn on sound</button>
+<div id="status">Connecting…</div>
+<div id="help">Set a globe on the pedestal to play its song · <kbd>1</kbd>–<kbd>4</kbd> test the speakers · <kbd>Esc</kbd> stop</div>
 
 <script src="lib/mqtt.min.js"></script>
-<script src="lib/qrcode.js"></script>
+<script src="player.js"></script>
 <script>
-// ---- Settings ----
-// Tag ID -> song file in the songs/ folder (tag 0 is the first line).
+// ---- Settings -------------------------------------------------------------
+// Every globe's tag carries one of these slugs, in the order the tag programmer
+// lists them. To add a song: drop the mp3 in songs/, add a line here, write the
+// slug to a tag. Nothing else changes.
 const SONGS = [
-  'songs/Frank Sinatra - Jingle Bells 4.mp3',
-  'songs/Frosty the Snowman (with lyrics).mp3',
-  'songs/Gene Autry - Rudolph the Red-Nosed Reindeer (Audio) 4.mp3',
-  'songs/White Christmas (Official Video) 4.mp3',
+  { slug: 'jingle-bells',    title: 'Jingle Bells',           file: 'songs/Jingle Bells - Sinatra (Intro Trimmed).mp3' },
+  { slug: 'frosty',          title: 'Frosty the Snowman',     file: 'songs/Frosty the Snowman (with lyrics).mp3' },
+  { slug: 'rudolph',         title: 'Rudolph the Red-Nosed Reindeer', file: 'songs/Gene Autry - Rudolph the Red-Nosed Reindeer (Audio) 4.mp3' },
+  { slug: 'white-christmas', title: 'White Christmas',        file: 'songs/White Christmas (Official Video) 4.mp3' },
 ];
-// Phones repeat their tag every second; stop the song if its phone goes quiet this long.
-const PHONE_TIMEOUT_MS = 3000;
-// Free public message server that passes messages between phone and computer on any network.
+// Free public message server, same one the pedestal publishes to.
 const BROKER = 'wss://broker.emqx.io:8084/mqtt';
+// If the pedestal stops talking for this long, the music stops. It publishes
+// every second, so this is "unplugged or lost WiFi", not "tag lifted".
+const READER_TIMEOUT_MS = 3000;
 
+// ---- Elements -------------------------------------------------------------
+const nowEl = document.getElementById('nowPlaying');
 const statusEl = document.getElementById('status');
 const soundBtn = document.getElementById('sound');
+const dotEl = document.getElementById('dot');
+const readerEl = document.getElementById('readerState');
+const roomEl = document.getElementById('room');
+
 const audio = new Audio();
+audio.preload = 'auto';
 
-let currentTag = null; // the tag whose song is playing, or null
-let tagOwner = null;   // the phone that chose the current song
-let ownerHeardAt = 0;  // when that phone last sent a message
+// ---- Room -----------------------------------------------------------------
+const params = new URLSearchParams(location.search);
+let room = params.get('room') || localStorage.getItem('roomId') || '';
 
-// Room code: saved in this browser so the QR code stays the same (it can be printed).
-let room = localStorage.getItem('roomId');
-if (!room) {
-  room = 'esc-snowglobe-' + Math.random().toString(36).slice(2, 10);
-  localStorage.setItem('roomId', room);
+// ---- Player ---------------------------------------------------------------
+let soundOn = false;
+// Invalidate work belonging to the previous song, even when rAF was delayed in a background tab.
+let audioGeneration = 0;
+
+function showIdle(text) {
+  nowEl.textContent = text || 'Waiting for a globe';
+  nowEl.classList.add('idle');
 }
-const topic = 'esc-snowglobe/' + room;
-const presence = topic + '/computer'; // phones read this to tell whether this page is open
 
-// ---- Music ----
-function setTag(tag) {
-  if (tag === currentTag) return;
-  currentTag = tag;
-  if (tag === null) {
-    audio.pause();
-    statusEl.textContent = 'Phone connected. Waiting for a tag';
-    return;
-  }
-  audio.src = SONGS[tag]; // a new src always starts the song from the beginning
-  audio.play().catch(() => setSoundOn(false));
-  statusEl.textContent = 'Tag ' + tag + ': playing';
+function fadeTo(target, then) {
+  const generation = audioGeneration;
+  const start = audio.volume;
+  const t0 = performance.now();
+  const step = (t) => {
+    if (generation !== audioGeneration) return;
+    const k = Math.max(0, Math.min(1, (t - t0) / 180));
+    audio.volume = start + (target - start) * k;
+    if (k < 1) requestAnimationFrame(step);
+    else if (then) then();
+  };
+  requestAnimationFrame(step);
 }
+
+const player = EscPlayer.createPlayer({
+  songs: SONGS,
+  timeoutMs: READER_TIMEOUT_MS,
+  hooks: {
+    onPlay(song) {
+      const generation = ++audioGeneration;
+      audio.pause();
+      audio.src = song.file;   // new src always starts from the beginning
+      audio.volume = 1;
+      const started = audio.play();
+      if (started && started.catch) started.catch(() => {
+        if (generation === audioGeneration) setSoundOn(false);
+      });
+      nowEl.textContent = song.title;
+      nowEl.classList.remove('idle');
+      statusEl.textContent = soundOn ? '' : 'Click the button above to let this page play audio';
+    },
+    onStop(slug, reason) {
+      ++audioGeneration;
+      fadeTo(0, () => { audio.pause(); audio.currentTime = 0; audio.volume = 1; });
+      showIdle();
+      statusEl.textContent = reason === 'tag removed' ? 'Globe lifted or tag no longer readable'
+        : reason === 'lost the reader' ? 'Stopped: no tag heartbeat for 3 seconds' : '';
+      console.info('[playback] stopped', { slug, reason });
+    },
+    onUnknown(slug) {
+      statusEl.textContent = 'Tag says "' + slug + '", which is not in SONGS in index.html';
+    },
+    onReader(id, online) {
+      dotEl.classList.toggle('on', online);
+      readerEl.textContent = online ? 'Pedestal connected' : 'Pedestal offline';
+    },
+  },
+});
 
 function setSoundOn(on) {
+  soundOn = on;
   soundBtn.classList.toggle('on', on);
   soundBtn.textContent = on ? '✓ Sound is on' : '🔊 Click to turn on sound';
 }
 
-// Browsers only allow sound after a click on the page.
+// Browsers only allow audio after a click on the page.
 soundBtn.addEventListener('click', () => {
-  if (currentTag === null) {
-    // Play and pause once so Safari lets this audio play later without another click.
-    audio.src = SONGS[0];
-    audio.play().then(() => { if (currentTag === null) audio.pause(); }, () => setSoundOn(false));
+  if (player.currentSong() !== null) {
+    audio.play().catch(() => setSoundOn(false));
   } else {
-    audio.play();
+    // Play and pause once so Safari allows the next real song without another click.
+    const generation = ++audioGeneration;
+    audio.src = SONGS[0].file;
+    audio.play().then(() => {
+      if (generation !== audioGeneration) return;
+      audio.pause();
+      audio.currentTime = 0;
+    }, () => { if (generation === audioGeneration) setSoundOn(false); });
   }
   setSoundOn(true);
 });
 
-// ---- Messages from phones ----
-function onPhoneMessage(phone, tag) {
-  // A phone seeing nothing must not stop a song that another phone started.
-  if (tag === null && phone !== tagOwner) {
-    if (currentTag === null) statusEl.textContent = 'Phone connected. Waiting for a tag';
+// Keyboard: test the speakers before the pedestal is on the table.
+addEventListener('keydown', (e) => {
+  if (document.activeElement === roomEl) return;
+  if (e.key >= '1' && e.key <= '9') {
+    const song = SONGS[Number(e.key) - 1];
+    if (song) player.playManually(song.slug);
+  } else if (e.key === 'Escape' || e.key === '0') {
+    player.stopManually();
+  }
+});
+
+// ---- Messages -------------------------------------------------------------
+let client = null;
+
+function connect() {
+  if (!room) {
+    showIdle('Set a room code');
+    readerEl.textContent = 'No room code';
+    statusEl.textContent = 'Copy the room code from config.h in the pedestal sketch, paste it above, press Enter';
+    dotEl.classList.remove('on');
     return;
   }
-  tagOwner = phone;
-  ownerHeardAt = performance.now();
-  setTag(tag);
+  roomEl.value = room;
+  localStorage.setItem('roomId', room);
+  if (client) { client.end(true); client = null; }
+  statusEl.textContent = 'Connecting…';
+  client = mqtt.connect(BROKER);
+
+  client.on('connect', () => {
+    statusEl.textContent = 'Looking for the pedestal…';
+    client.subscribe('esc-snowglobe/' + room + '/tag');
+    client.subscribe('esc-snowglobe/' + room + '/reader');
+  });
+  client.on('message', (topic, payload) => {
+    let msg;
+    try { msg = JSON.parse(payload.toString()); } catch { return; }
+    if (topic.endsWith('/reader')) player.onReaderStatus(msg);
+    else player.onTagMessage(msg);
+  });
+  client.on('offline', () => {
+    dotEl.classList.remove('on');
+    readerEl.textContent = 'Pedestal offline';
+    statusEl.textContent = 'No internet. Reconnecting…';
+  });
+  client.on('error', () => { statusEl.textContent = 'Cannot reach the message server. Retrying…'; });
 }
 
-// 'offline' is posted automatically by the server if this page disappears (the "will").
-const client = mqtt.connect(BROKER, { will: { topic: presence, payload: 'offline', retain: true } });
-
-client.on('connect', () => {
-  client.publish(presence, 'online', { retain: true });
-  client.subscribe(topic + '/tag');
-  const qr = qrcode(0, 'M');
-  qr.addData(new URL('phone.html#' + room, location.href).href);
-  qr.make();
-  document.getElementById('qr').innerHTML = qr.createSvgTag({ scalable: true, margin: 0 });
-  statusEl.textContent = 'Scan with the phone';
+roomEl.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  const value = roomEl.value.trim();
+  room = value;
+  history.replaceState(null, '', value ? '?room=' + encodeURIComponent(value) : location.pathname);
+  connect();
 });
-client.on('message', (_, payload) => {
-  const msg = JSON.parse(payload);
-  onPhoneMessage(msg.phone, msg.tag);
-});
-client.on('offline', () => { statusEl.textContent = 'No internet. Reconnecting…'; });
-addEventListener('pagehide', () => client.publish(presence, 'offline', { retain: true }));
 
-// Stop the music if the phone that chose the song goes quiet (closed, or lost its connection).
-setInterval(() => {
-  if (currentTag !== null && performance.now() - ownerHeardAt > PHONE_TIMEOUT_MS) {
-    setTag(null);
-    statusEl.textContent = 'Lost the phone. Scan again';
-  }
-}, 500);
+setInterval(() => player.tick(), 250);
+connect();
 </script>
 </body>
 </html>

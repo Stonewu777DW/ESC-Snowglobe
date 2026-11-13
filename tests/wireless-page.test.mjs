@@ -17,8 +17,8 @@ function boot(t, supported = true) {
         connect: async () => { connections++; o.onState('connecting'); o.onState('connected', 'ESC Pedestal E068'); },
         disconnect: () => { disconnections++; o.onState('disconnected'); },
       }; } };
-      w.Audio = class {
-        constructor() { this.paused = true; audio.push(this); }
+      w.Audio = class extends w.EventTarget {
+        constructor() { super(); this.paused = true; audio.push(this); }
         play() { this.paused = false; return Promise.resolve(); }
         pause() { this.paused = true; }
       };
@@ -38,22 +38,45 @@ test('speaker test has a stop control even while connected', (t) => {
   assert.equal(d.querySelector('#stop').hidden, true);
 });
 
-test('O Christmas Tree unlocks with the puzzle checkbox, plays until Stop, and a globe takes over', (t) => {
+test('O Christmas Tree unlocks with the puzzle checkbox, plays once, and its button stops it', (t) => {
   const r = boot(t); const d = r.window.document;
+  const tree = d.querySelector('#tree');
   r.state('connected', 'ESC Pedestal E068');
-  assert.equal(d.querySelector('#tree').disabled, true);
+  assert.equal(tree.disabled, true);
   d.querySelector('#puzzleDone').click();
-  assert.equal(d.querySelector('#tree').disabled, false);
-  d.querySelector('#tree').click();
+  assert.equal(tree.disabled, false);
+  tree.click();
   assert.match(r.audio.src, /O Tannenbaum/);
+  assert.equal(r.audio.loop, false);
   assert.equal(r.audio.paused, false);
   assert.equal(d.querySelector('#nowPlaying').textContent, 'O Christmas Tree');
-  assert.equal(d.querySelector('#stop').hidden, false);
+  assert.equal(tree.textContent, 'Stop Playing');
+  tree.click();
+  assert.equal(r.audio.paused, true);
+  assert.equal(tree.textContent, 'Play O Christmas Tree');
+  tree.click();
+  r.audio.dispatchEvent(new r.window.Event('ended'));
+  assert.equal(r.audio.paused, true);
+  assert.equal(tree.textContent, 'Play O Christmas Tree');
+});
+
+test('while the puzzle box is ticked, globes are ignored; unticking restores them', (t) => {
+  const r = boot(t); const d = r.window.document;
+  r.state('connected', 'ESC Pedestal E068');
   r.snapshot(healthy('frosty'));
   assert.match(r.audio.src, /Frosty/);
-  d.querySelector('#tree').click();
-  d.querySelector('#stop').click();
+  d.querySelector('#puzzleDone').click();
   assert.equal(r.audio.paused, true);
+  r.snapshot(healthy('frosty'));
+  assert.equal(r.audio.paused, true);
+  d.querySelector('#tree').click();
+  r.snapshot(healthy('rudolph'));
+  assert.match(r.audio.src, /O Tannenbaum/);
+  assert.equal(r.audio.paused, false);
+  d.querySelector('#puzzleDone').click();
+  assert.equal(r.audio.paused, true);
+  r.snapshot(healthy('rudolph'));
+  assert.match(r.audio.src, /Rudolph/);
 });
 
 test('a song repeats while its globe stays on the pedestal', (t) => {

@@ -38,6 +38,21 @@ test('speaker test has a stop control even while connected', (t) => {
   assert.equal(d.querySelector('#stop').hidden, true);
 });
 
+test('O Christmas Tree plays from its button until Stop, and a globe takes over', (t) => {
+  const r = boot(t); const d = r.window.document;
+  r.state('connected', 'ESC Pedestal E068');
+  d.querySelector('#tree').click();
+  assert.match(r.audio.src, /O Tannenbaum/);
+  assert.equal(r.audio.paused, false);
+  assert.equal(d.querySelector('#nowPlaying').textContent, 'O Christmas Tree');
+  assert.equal(d.querySelector('#stop').hidden, false);
+  r.snapshot(healthy('frosty'));
+  assert.match(r.audio.src, /Frosty/);
+  d.querySelector('#tree').click();
+  d.querySelector('#stop').click();
+  assert.equal(r.audio.paused, true);
+});
+
 test('a song repeats while its globe stays on the pedestal', (t) => {
   const r = boot(t);
   r.state('connected', 'ESC Pedestal E068');

@@ -41,6 +41,7 @@ const SONGS = [
 const $ = (id) => document.getElementById(id);
 const audio = new Audio();
 audio.preload = 'auto'; audio.volume = Number($('volume').value);
+audio.loop = true; // a song repeats while its globe stays on the pedestal
 let audioGeneration = 0, connected = false, healthy = false;
 function playback(text) { $('playbackState').textContent = text; document.body.dataset.playing = String(text === 'Playing'); }
 function clock(seconds) { if (!Number.isFinite(seconds) || seconds < 0) return '—:—'; return Math.floor(seconds / 60) + ':' + String(Math.floor(seconds % 60)).padStart(2, '0'); }
@@ -120,7 +121,6 @@ $('volume').addEventListener('input', () => { audio.volume = Number($('volume').
 audio.addEventListener?.('error', () => { playback('Load error'); status('The song could not load. Check your internet connection and reload.', true); });
 audio.addEventListener?.('playing', () => { if (player.currentSong()) playback('Playing'); });
 audio.addEventListener?.('waiting', () => { if (player.currentSong()) playback('Buffering'); });
-audio.addEventListener?.('ended', () => playback('Finished'));
 audio.addEventListener?.('timeupdate', updateTime);
 audio.addEventListener?.('loadedmetadata', updateTime);
 if (!isSecureContext || !navigator.bluetooth) {

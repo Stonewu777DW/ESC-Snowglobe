@@ -38,6 +38,14 @@ test('speaker test has a stop control even while connected', (t) => {
   assert.equal(d.querySelector('#stop').hidden, true);
 });
 
+test('a song repeats while its globe stays on the pedestal', (t) => {
+  const r = boot(t);
+  r.state('connected', 'ESC Pedestal E068');
+  r.snapshot(healthy('frosty'));
+  assert.equal(r.audio.loop, true);
+  assert.equal(r.audio.paused, false);
+});
+
 test('live statistics follow playback, reader health, volume and disconnect', (t) => {
   const r = boot(t); const d = r.window.document;
   r.state('connected', 'ESC Pedestal E068');

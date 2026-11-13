@@ -1,0 +1,8 @@
+// Cloudflare Workers hosting: `npx wrangler deploy` first runs tools/build_site.py, which puts
+// only the player files in dist/, then serves dist/. No build command is needed in the dashboard.
+{
+  "name": "esc-snowglobe",
+  "compatibility_date": "2026-11-01",
+  "build": { "command": "python3 tools/build_site.py" },
+  "assets": { "directory": "./dist" }
+}

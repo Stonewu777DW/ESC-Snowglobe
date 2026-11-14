@@ -9,11 +9,11 @@ test('public site build includes the player, guide and exactly five selected son
   const out = new URL('../dist/', import.meta.url);
   const read = name => readFileSync(new URL(name, out), 'utf8');
   assert.equal(read('index.html'), read('wireless.html'));
-  for (const name of ['instructions.html', 'wireless.css', 'player.js', 'ble.js', '_headers', 'build-info.json']) assert.ok(existsSync(new URL(name, out)), name);
+  for (const name of ['instructions.html', 'wireless.css', 'player.js', 'ble.js', 'lib/mqtt.min.js', '_headers', 'build-info.json']) assert.ok(existsSync(new URL(name, out)), name);
   assert.match(read('index.html'), /instructions.html/);
   assert.match(read('instructions.html'), /github.com\/sidatpho\/ESC-Snowglobe/);
   const files = readdirSync(out).sort();
-  assert.deepEqual(files, ['_headers','ble.js','build-info.json','index.html','instructions.html','player.js','songs','wireless.css','wireless.html'].sort());
+  assert.deepEqual(files, ['_headers','ble.js','build-info.json','index.html','instructions.html','lib','player.js','songs','wireless.css','wireless.html'].sort());
   assert.equal(readdirSync(new URL('songs/',out)).length,5);
   assert.ok(!readdirSync(new URL('songs/',out)).some(n=>n.includes('Frank Sinatra - Jingle Bells 4')));
   const info=JSON.parse(read('build-info.json'));

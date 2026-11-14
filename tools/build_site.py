@@ -16,7 +16,7 @@ def build():
     # Four globe songs plus O Christmas Tree, which plays from a button.
     if len(songs) != 5 or len(set(songs)) != 5:
         raise ValueError('Expected exactly five distinct playlist files')
-    assets = ['wireless.html', 'instructions.html', 'wireless.css', 'player.js', 'ble.js', *songs]
+    assets = ['wireless.html', 'instructions.html', 'wireless.css', 'player.js', 'ble.js', 'lib/mqtt.min.js', 'lib/LICENSE-mqtt.md', *songs]
     for name in assets:
         source = (ROOT / name).resolve()
         if not source.is_relative_to(ROOT) or not source.is_file():

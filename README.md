@@ -17,6 +17,11 @@ speaker. There is no Wi-Fi setup, room code, account or USB cable during normal 
 Pair a Bluetooth speaker with the **computer**, not the Arduino. Keep the tab open
 and computer awake. The **How it works** page has the detailed instructions.
 
+Anyone else who opens the player sees what the connected computer is doing (song,
+progress, puzzle box) live, with no sound and the controls locked. Only the computer
+connected to the pedestal can change anything. Add `?room=NAME` to the URL to keep two
+rooms apart. The live view goes through the free public broker `broker.emqx.io`.
+
 **Live player:** https://esc-snowglobe.pages.dev/
 
 Pushes/merges to `main` automatically run tests and deploy to the same site.

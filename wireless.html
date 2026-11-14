@@ -34,7 +34,7 @@
 </section>
 </main>
 <footer class="page-footer"><span class="holly" aria-hidden="true">●</span> A little Christmas, on cue.</footer>
-<script src="player.js"></script><script src="ble.js"></script>
+<script src="lib/mqtt.min.js"></script><script src="player.js"></script><script src="ble.js"></script>
 <script>
 const SONGS = [
   {slug:'jingle-bells',title:'Jingle Bells',file:'songs/Jingle Bells - Sinatra (Intro Trimmed).mp3'},
@@ -93,7 +93,10 @@ const connection = EscBle.createConnection({
     if (!$('puzzleDone').checked) player.onTagMessage(snapshot);
   },
   onState(state, detail) {
+    const wasConnected = connected;
     connected = state === 'connected';
+    if (connected) endViewing();
+    if (wasConnected && !connected) live?.publish(LIVE_TOPIC, '', { retain: true }); // viewers reset now
     $('transport').textContent = connected ? 'Bluetooth LE' : state === 'connecting' ? 'Connecting…' : 'Offline';
     if (!connected && state !== 'connecting') $('readerState').textContent = '—';
     $('connect').disabled = state === 'connecting';
@@ -146,10 +149,58 @@ audio.addEventListener?.('waiting', () => { if (player.currentSong()) playback('
 audio.addEventListener?.('ended', () => player.stopManually()); // only O Christmas Tree ends; the rest loop
 audio.addEventListener?.('timeupdate', updateTime);
 audio.addEventListener?.('loadedmetadata', updateTime);
-if (!isSecureContext || !navigator.bluetooth) {
-  $('connect').disabled = true;
-  status('Open this HTTPS website in desktop Chrome or Edge on macOS or Windows. Safari and Firefox cannot connect to the pedestal.', true);
+const canConnect = isSecureContext && !!navigator.bluetooth;
+const UNSUPPORTED = 'Open this HTTPS website in desktop Chrome or Edge on macOS or Windows. Safari and Firefox cannot connect to the pedestal.';
+if (!canConnect) { $('connect').disabled = true; status(UNSUPPORTED, true); }
+
+// ---- Live view ------------------------------------------------------------
+// The computer connected to the pedestal is in control: once a second it shares what it shows through
+// a free public message server. Every other computer with this page open shows the same thing, with
+// its own controls locked and no sound. Add ?room=NAME to the URL to keep two escape rooms apart.
+const LIVE_TOPIC = 'esc-snowglobe/live/' + (new URLSearchParams(location.search).get('room') || 'main');
+const LIVE_STALE_MS = 5000; // no update for this long = the controlling computer has gone
+const live = window.mqtt ? mqtt.connect('wss://broker.emqx.io:8084/mqtt') : null;
+let viewing = false, lastLive = 0, lastShare = 0;
+function lockControls(locked) {
+  $('puzzleDone').disabled = locked; $('test').disabled = locked;
+  $('tree').disabled = locked || !$('puzzleDone').checked;
 }
-setInterval(() => { player.tick(); updateTime(); }, 250);
+function shareLive() {
+  live.publish(LIVE_TOPIC, JSON.stringify({
+    at: Date.now(), title: $('nowPlaying').textContent, playback: $('playbackState').textContent,
+    reader: $('readerState').textContent, connection: $('connection').textContent, status: $('status').textContent,
+    puzzle: $('puzzleDone').checked, tree: $('tree').textContent, elapsed: audio.currentTime || 0, duration: audio.duration,
+  }), { retain: true }); // retained, so a page opened later sees the current state at once
+}
+function showLive(s) {
+  if (!viewing) { player.stopManually(); lockControls(true); }
+  viewing = true; lastLive = Date.now();
+  $('nowPlaying').textContent = s.title; playback(s.playback);
+  $('connection').textContent = 'Watching · ' + s.connection; $('transport').textContent = 'Live view';
+  $('readerState').textContent = s.reader; status(s.status);
+  $('puzzleDone').checked = s.puzzle; $('tree').textContent = s.tree;
+  $('elapsed').textContent = clock(s.elapsed); $('duration').textContent = clock(s.duration);
+  $('progress').value = s.duration > 0 ? Math.min(1, s.elapsed / s.duration) : 0;
+}
+function endViewing() {
+  if (!viewing) return;
+  viewing = false; $('puzzleDone').checked = false; lockControls(false); halt();
+  $('nowPlaying').textContent = 'Waiting for a globe'; $('connection').textContent = 'Not connected';
+  $('transport').textContent = 'Offline'; $('readerState').textContent = '—';
+  if (canConnect) status('Connect your pedestal to begin.'); else status(UNSUPPORTED, true);
+}
+live?.on('connect', () => live.subscribe(LIVE_TOPIC));
+live?.on('message', (topic, payload, packet) => {
+  if (connected) return; // this computer is the one in control
+  let s = null; try { s = JSON.parse(payload.toString()); } catch {}
+  // An empty message means the controller disconnected; an old retained one is from a closed page.
+  if (!s || (packet.retain && Date.now() - s.at > 3 * LIVE_STALE_MS)) endViewing(); else showLive(s);
+});
+setInterval(() => {
+  player.tick();
+  if (viewing) { if (Date.now() - lastLive > LIVE_STALE_MS) endViewing(); return; }
+  updateTime();
+  if (connected && live?.connected && Date.now() - lastShare >= 1000) { lastShare = Date.now(); shareLive(); }
+}, 250);
 </script>
 </body></html>

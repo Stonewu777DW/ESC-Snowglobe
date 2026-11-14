@@ -7,12 +7,17 @@ const html = readFileSync(new URL('wireless.html', root), 'utf8');
 const source = readFileSync(new URL('player.js', root), 'utf8');
 function boot(t, supported = true) {
   let opts, connections = 0, disconnections = 0;
+  // Fake message-server client for the live view: records publishes, lets tests deliver messages.
+  const handlers = {}, published = [];
+  const mqttClient = { connected: true, on: (e, f) => { handlers[e] = f; }, subscribe() {},
+    publish: (topic, payload, o) => published.push({ topic, payload, retain: o.retain }) };
   const audio = [];
   const dom = new JSDOM(html, { url: 'https://snowglobe.example/', runScripts: 'dangerously',
     beforeParse(w) {
       Object.defineProperty(w, 'isSecureContext', { value: true });
       if (supported) Object.defineProperty(w.navigator, 'bluetooth', { value: {} });
       w.eval(source);
+      w.mqtt = { connect: () => mqttClient };
       w.EscBle = { createConnection: (o) => { opts = o; return {
         connect: async () => { connections++; o.onState('connecting'); o.onState('connected', 'ESC Pedestal E068'); },
         disconnect: () => { disconnections++; o.onState('disconnected'); },
@@ -25,7 +30,8 @@ function boot(t, supported = true) {
     } });
   t.after(() => dom.window.close());
   return { window: dom.window, audio: audio[0], snapshot: (s) => opts.onSnapshot(s),
-    state: (...a) => opts.onState(...a), connections: () => connections, disconnections: () => disconnections };
+    state: (...a) => opts.onState(...a), published,
+    live: (payload, retain = false) => handlers.message('esc-snowglobe/live/main', payload, { retain }), connections: () => connections, disconnections: () => disconnections };
 }
 test('speaker test has a stop control even while connected', (t) => {
   const r = boot(t); const d = r.window.document;
@@ -161,4 +167,35 @@ test('new site and existing player agree on the four song paths', (t) => {
   for (const path of [...legacy.matchAll(/file: '([^']+)'/g)].map((m) => m[1])) {
     assert.ok(html.includes(path), path);
   }
+});
+
+test('the connected computer shares its state for viewers and clears it on disconnect', async (t) => {
+  const r = boot(t);
+  r.state('connected', 'ESC Pedestal E068');
+  r.snapshot(healthy('frosty'));
+  await new Promise((done) => setTimeout(done, 300));
+  const last = r.published.at(-1);
+  assert.equal(last.topic, 'esc-snowglobe/live/main');
+  assert.equal(last.retain, true);
+  assert.equal(JSON.parse(last.payload).title, 'Frosty the Snowman');
+  r.window.document.querySelector('#disconnect').click();
+  assert.equal(r.published.at(-1).payload, '');
+});
+
+test('another computer shows the live state with its controls locked, and unlocks when it ends', (t) => {
+  const r = boot(t); const d = r.window.document;
+  const state = { at: Date.now(), title: 'O Christmas Tree', playback: 'Playing', reader: 'E068 · Ready',
+    connection: 'Pedestal ready · E068', status: 'O Christmas Tree plays once.', puzzle: true, tree: 'Stop Playing', elapsed: 9, duration: 36 };
+  r.live(JSON.stringify(state));
+  assert.equal(d.querySelector('#nowPlaying').textContent, 'O Christmas Tree');
+  assert.equal(d.querySelector('#elapsed').textContent, '0:09');
+  assert.equal(d.querySelector('#puzzleDone').checked, true);
+  for (const id of ['#puzzleDone', '#tree', '#test']) assert.equal(d.querySelector(id).disabled, true, id);
+  assert.equal(r.audio.paused, true); // viewers stay silent
+  r.live('');
+  assert.equal(d.querySelector('#nowPlaying').textContent, 'Waiting for a globe');
+  assert.equal(d.querySelector('#puzzleDone').disabled, false);
+  assert.equal(d.querySelector('#puzzleDone').checked, false);
+  r.live(JSON.stringify({ ...state, at: Date.now() - 60000 }), true); // left over from a closed page
+  assert.equal(d.querySelector('#nowPlaying').textContent, 'Waiting for a globe');
 });
